@@ -1,0 +1,22 @@
+# 双色球预测系统 - Python 依赖清单
+# 使用方法: pip install -r requirements.txt
+
+# 核心数据处理
+numpy==2.4.6
+pandas==3.0.3
+scipy==1.18.0
+
+# 机器学习
+scikit-learn==1.9.0
+lightgbm==4.7.0
+joblib==1.5.3
+
+# 深度学习 (PyTorch CPU 版)
+# 如需 GPU 版, 请参考 https://pytorch.org/get-started/locally/
+torch==2.13.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# 数据采集 (爬虫)
+requests==2.34.2
+urllib3==2.7.0
+lxml>=5.0.0

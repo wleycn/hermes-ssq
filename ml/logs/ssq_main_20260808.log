@@ -1,0 +1,1622 @@
+2026-08-08 09:25:58 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:25:58 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 09:25:58) ===
+2026-08-08 09:25:58 [INFO] ssq.main: [main] 命令行参数: command=train-predict-batch
+2026-08-08 09:25:58 [INFO] ssq.main: [main] 执行命令: train-predict-batch
+2026-08-08 09:25:58 [INFO] ssq.main: [main] train-predict-batch: model=rf, columns=all=['Red1', 'Red2', 'Red3', 'Red4', 'Red5', 'Red6', 'Blue1'], retrain=True
+2026-08-08 09:25:58 [INFO] ssq.main: [batch_train_predict_model] === 开始: model=rf, retrain=True, columns=['Red1', 'Red2', 'Red3', 'Red4', 'Red5', 'Red6', 'Blue1'] ===
+2026-08-08 09:25:58 [INFO] ssq.main: [batch_train_predict_model] [1/7] 处理 rf - Red1
+2026-08-08 09:25:58 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red1, retrain=True ===
+2026-08-08 09:25:58 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:25:58 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:25:58 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:25:58 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:25:58 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red1, retrain=True
+2026-08-08 09:25:58 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:26:01 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: RandomForestModel
+2026-08-08 09:26:01 [INFO] ssq.main: [train_individual] 模型名称: rf_Red1, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red1
+2026-08-08 09:26:01 [INFO] ssq.main: [train_individual] 数据列: Red1, 样本数: 3486
+2026-08-08 09:26:01 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:26:01 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.06s, 特征维度: (3315, 164), 类别数: 19
+2026-08-08 09:26:01 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:26:23 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.33s
+2026-08-08 09:26:23 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red1
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 训练完成: rf_Red1, 总耗时: 22.33s
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red1 ===
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red1
+2026-08-08 09:26:24 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:26:24 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red1
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.02s
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.07s
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-1: number=1, prob=0.189904
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-2: number=3, prob=0.153610
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-3: number=2, prob=0.134084
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-4: number=4, prob=0.115651
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-5: number=5, prob=0.078096
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] Top-6: number=6, prob=0.065693
+2026-08-08 09:26:24 [INFO] ssq.main: [predict_individual] 预测结果: [1, 3, 2, 4, 5, 6]
+2026-08-08 09:26:24 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red1
+2026-08-08 09:26:24 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red1_20260808_092624.csv, 行数: 19
+2026-08-08 09:26:24 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:26:24 [INFO] ssq.main: [batch_train_predict_model] [1/7] rf_Red1 完成, 耗时: 25.93s
+2026-08-08 09:26:24 [INFO] ssq.main: [batch_train_predict_model] [2/7] 处理 rf - Red2
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red2, retrain=True ===
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:26:24 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red2, retrain=True
+2026-08-08 09:26:24 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:26:24 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 模型名称: rf_Red2, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red2
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 数据列: Red2, 样本数: 3486
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.01s, 特征维度: (3319, 164), 类别数: 24
+2026-08-08 09:26:24 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.12s
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red2
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 训练完成: rf_Red2, 总耗时: 22.12s
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red2 ===
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red2
+2026-08-08 09:26:46 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:26:46 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red2
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.02s
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.07s
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-1: number=7, prob=0.084226
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-2: number=6, prob=0.083932
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-3: number=8, prob=0.078686
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-4: number=4, prob=0.077784
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-5: number=9, prob=0.077392
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] Top-6: number=10, prob=0.070159
+2026-08-08 09:26:46 [INFO] ssq.main: [predict_individual] 预测结果: [7, 6, 8, 4, 9, 10]
+2026-08-08 09:26:46 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red2
+2026-08-08 09:26:46 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red2_20260808_092646.csv, 行数: 24
+2026-08-08 09:26:46 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:26:46 [INFO] ssq.main: [batch_train_predict_model] [2/7] rf_Red2 完成, 耗时: 22.29s
+2026-08-08 09:26:46 [INFO] ssq.main: [batch_train_predict_model] [3/7] 处理 rf - Red3
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red3, retrain=True ===
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:26:46 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red3, retrain=True
+2026-08-08 09:26:46 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:26:46 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 模型名称: rf_Red3, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red3
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 数据列: Red3, 样本数: 3486
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.01s, 特征维度: (3321, 164), 类别数: 27
+2026-08-08 09:26:46 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.81s
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red3
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 训练完成: rf_Red3, 总耗时: 22.81s
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red3 ===
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red3
+2026-08-08 09:27:09 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:09 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red3
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.05s
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.09s
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-1: number=11, prob=0.085282
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-2: number=14, prob=0.071093
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-3: number=15, prob=0.070016
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-4: number=16, prob=0.066621
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-5: number=12, prob=0.065462
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] Top-6: number=13, prob=0.063557
+2026-08-08 09:27:09 [INFO] ssq.main: [predict_individual] 预测结果: [11, 14, 15, 16, 12, 13]
+2026-08-08 09:27:09 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red3
+2026-08-08 09:27:09 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red3_20260808_092709.csv, 行数: 27
+2026-08-08 09:27:09 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:27:09 [INFO] ssq.main: [batch_train_predict_model] [3/7] rf_Red3 完成, 耗时: 23.07s
+2026-08-08 09:27:09 [INFO] ssq.main: [batch_train_predict_model] [4/7] 处理 rf - Red4
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red4, retrain=True ===
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:09 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red4, retrain=True
+2026-08-08 09:27:09 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:09 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 模型名称: rf_Red4, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red4
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 数据列: Red4, 样本数: 3486
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.01s, 特征维度: (3318, 164), 类别数: 26
+2026-08-08 09:27:09 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.01s
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red4
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 训练完成: rf_Red4, 总耗时: 22.01s
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red4 ===
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red4
+2026-08-08 09:27:31 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:31 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red4
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.05s
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.11s
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-1: number=23, prob=0.086158
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-2: number=17, prob=0.073673
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-3: number=18, prob=0.073322
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-4: number=20, prob=0.064360
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-5: number=22, prob=0.063634
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] Top-6: number=21, prob=0.061571
+2026-08-08 09:27:31 [INFO] ssq.main: [predict_individual] 预测结果: [23, 17, 18, 20, 22, 21]
+2026-08-08 09:27:31 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red4
+2026-08-08 09:27:31 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red4_20260808_092731.csv, 行数: 26
+2026-08-08 09:27:31 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:27:31 [INFO] ssq.main: [batch_train_predict_model] [4/7] rf_Red4 完成, 耗时: 22.28s
+2026-08-08 09:27:31 [INFO] ssq.main: [batch_train_predict_model] [5/7] 处理 rf - Red5
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red5, retrain=True ===
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:31 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red5, retrain=True
+2026-08-08 09:27:31 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:31 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 模型名称: rf_Red5, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red5
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 数据列: Red5, 样本数: 3486
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.01s, 特征维度: (3320, 164), 类别数: 25
+2026-08-08 09:27:31 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.83s
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red5
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 训练完成: rf_Red5, 总耗时: 22.83s
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red5 ===
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red5
+2026-08-08 09:27:54 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:54 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red5
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.04s
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.10s
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-1: number=26, prob=0.087864
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-2: number=27, prob=0.085444
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-3: number=25, prob=0.084553
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-4: number=28, prob=0.071762
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-5: number=24, prob=0.070502
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] Top-6: number=30, prob=0.065410
+2026-08-08 09:27:54 [INFO] ssq.main: [predict_individual] 预测结果: [26, 27, 25, 28, 24, 30]
+2026-08-08 09:27:54 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red5
+2026-08-08 09:27:54 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red5_20260808_092754.csv, 行数: 25
+2026-08-08 09:27:54 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:27:54 [INFO] ssq.main: [batch_train_predict_model] [5/7] rf_Red5 完成, 耗时: 23.09s
+2026-08-08 09:27:54 [INFO] ssq.main: [batch_train_predict_model] [6/7] 处理 rf - Red6
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Red6, retrain=True ===
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:27:54 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Red6, retrain=True
+2026-08-08 09:27:54 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:27:54 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 模型名称: rf_Red6, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red6
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 数据列: Red6, 样本数: 3486
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.01s, 特征维度: (3319, 164), 类别数: 20
+2026-08-08 09:27:54 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.16s
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Red6
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 训练完成: rf_Red6, 总耗时: 22.16s
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Red6 ===
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Red6
+2026-08-08 09:28:17 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:28:17 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 加载模型: rf_Red6
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.04s
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.11s
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-1: number=33, prob=0.165110
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-2: number=32, prob=0.149462
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-3: number=31, prob=0.132955
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-4: number=30, prob=0.107563
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-5: number=29, prob=0.092856
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] Top-6: number=28, prob=0.061994
+2026-08-08 09:28:17 [INFO] ssq.main: [predict_individual] 预测结果: [33, 32, 31, 30, 29, 28]
+2026-08-08 09:28:17 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Red6
+2026-08-08 09:28:17 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Red6_20260808_092817.csv, 行数: 20
+2026-08-08 09:28:17 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:28:17 [INFO] ssq.main: [batch_train_predict_model] [6/7] rf_Red6 完成, 耗时: 22.42s
+2026-08-08 09:28:17 [INFO] ssq.main: [batch_train_predict_model] [7/7] 处理 rf - Blue1
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=rf, column=Blue1, retrain=True ===
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:28:17 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 开始训练: model_type=rf, column=Blue1, retrain=True
+2026-08-08 09:28:17 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:28:17 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 模型名称: rf_Blue1, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Blue1
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 数据列: Blue1, 样本数: 3486
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.00s, 特征维度: (3322, 164), 类别数: 16
+2026-08-08 09:28:17 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:28:39 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 22.13s
+2026-08-08 09:28:39 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\rf_Blue1
+2026-08-08 09:28:39 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:28:39 [INFO] ssq.main: [train_individual] 训练完成: rf_Blue1, 总耗时: 22.13s
+2026-08-08 09:28:39 [INFO] ssq.main: [run_train] === 训练流程完成: rf ===
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=rf, column=Blue1 ===
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 开始预测: model_type=rf, column=Blue1
+2026-08-08 09:28:39 [INFO] ssq.main: [get_model_class] 查找模型类型: rf
+2026-08-08 09:28:39 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: RandomForestModel
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 加载模型: rf_Blue1
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.05s
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 164)
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.11s
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-1: number=3, prob=0.091180
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-2: number=14, prob=0.073854
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-3: number=8, prob=0.067435
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-4: number=1, prob=0.066504
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-5: number=7, prob=0.064815
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] Top-6: number=4, prob=0.064245
+2026-08-08 09:28:39 [INFO] ssq.main: [predict_individual] 预测结果: [3, 14, 8, 1, 7, 4]
+2026-08-08 09:28:39 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=rf, column=Blue1
+2026-08-08 09:28:39 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_rf_Blue1_20260808_092839.csv, 行数: 16
+2026-08-08 09:28:39 [INFO] ssq.main: [run_predict] === 预测流程完成: rf ===
+2026-08-08 09:28:39 [INFO] ssq.main: [batch_train_predict_model] [7/7] rf_Blue1 完成, 耗时: 22.40s
+2026-08-08 09:28:39 [INFO] ssq.main: [batch_train_predict_model] 完成: 成功 7/7, 失败 0, 总耗时 161.48s
+2026-08-08 09:28:39 [INFO] ssq.main: [batch_train_predict_model] CSV 汇总已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_summary_rf_20260808_092839.csv
+2026-08-08 09:28:39 [INFO] ssq.main: [main] train-predict-batch 完成, 耗时: 161.50s
+2026-08-08 09:28:39 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 09:28:39 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:40:08 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:40:08 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 09:40:08) ===
+2026-08-08 09:40:08 [INFO] ssq.main: [main] 命令行参数: command=train-predict-batch
+2026-08-08 09:40:08 [INFO] ssq.main: [main] 执行命令: train-predict-batch
+2026-08-08 09:40:08 [INFO] ssq.main: [main] train-predict-batch: model=lgbm, columns=all=['Red1', 'Red2', 'Red3', 'Red4', 'Red5', 'Red6', 'Blue1'], retrain=True
+2026-08-08 09:40:08 [INFO] ssq.main: [batch_train_predict_model] === 开始: model=lgbm, retrain=True, columns=['Red1', 'Red2', 'Red3', 'Red4', 'Red5', 'Red6', 'Blue1'] ===
+2026-08-08 09:40:08 [INFO] ssq.main: [batch_train_predict_model] [1/7] 处理 lgbm - Red1
+2026-08-08 09:40:08 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red1, retrain=True ===
+2026-08-08 09:40:08 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:08 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:08 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:08 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:08 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red1, retrain=True
+2026-08-08 09:40:08 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:09 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LightGBMModel
+2026-08-08 09:40:09 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red1, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red1
+2026-08-08 09:40:09 [INFO] ssq.main: [train_individual] 数据列: Red1, 样本数: 3486
+2026-08-08 09:40:09 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:10 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.29s, 特征维度: (3343, 188), 类别数: 17
+2026-08-08 09:40:10 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 6.26s
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red1
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red1, 总耗时: 6.26s
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red1 ===
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red1
+2026-08-08 09:40:16 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:16 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red1
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.06s
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.07s
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-1: number=1, prob=0.208773
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-2: number=2, prob=0.136804
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-3: number=4, prob=0.118323
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-4: number=3, prob=0.106769
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-5: number=5, prob=0.078373
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] Top-6: number=6, prob=0.076066
+2026-08-08 09:40:16 [INFO] ssq.main: [predict_individual] 预测结果: [1, 2, 4, 3, 5, 6]
+2026-08-08 09:40:16 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red1
+2026-08-08 09:40:16 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red1_20260808_094016.csv, 行数: 17
+2026-08-08 09:40:16 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:40:16 [INFO] ssq.main: [batch_train_predict_model] [1/7] lgbm_Red1 完成, 耗时: 8.61s
+2026-08-08 09:40:16 [INFO] ssq.main: [batch_train_predict_model] [2/7] 处理 lgbm - Red2
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red2, retrain=True ===
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:16 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red2, retrain=True
+2026-08-08 09:40:16 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:16 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red2, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red2
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 数据列: Red2, 样本数: 3486
+2026-08-08 09:40:16 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:17 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.30s, 特征维度: (3348, 188), 类别数: 22
+2026-08-08 09:40:17 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 5.64s
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red2
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red2, 总耗时: 5.64s
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red2 ===
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red2
+2026-08-08 09:40:22 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:22 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red2
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.05s
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.00s
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-1: number=7, prob=0.127671
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-2: number=5, prob=0.092614
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-3: number=9, prob=0.073512
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-4: number=6, prob=0.071961
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-5: number=8, prob=0.071069
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] Top-6: number=4, prob=0.068178
+2026-08-08 09:40:22 [INFO] ssq.main: [predict_individual] 预测结果: [7, 5, 9, 6, 8, 4]
+2026-08-08 09:40:22 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red2
+2026-08-08 09:40:22 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red2_20260808_094022.csv, 行数: 22
+2026-08-08 09:40:22 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:40:22 [INFO] ssq.main: [batch_train_predict_model] [2/7] lgbm_Red2 完成, 耗时: 6.19s
+2026-08-08 09:40:22 [INFO] ssq.main: [batch_train_predict_model] [3/7] 处理 lgbm - Red3
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red3, retrain=True ===
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:22 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red3, retrain=True
+2026-08-08 09:40:22 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:22 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red3, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red3
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 数据列: Red3, 样本数: 3486
+2026-08-08 09:40:22 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:23 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.29s, 特征维度: (3355, 188), 类别数: 26
+2026-08-08 09:40:23 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:40:38 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 15.48s
+2026-08-08 09:40:38 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red3
+2026-08-08 09:40:38 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:40:38 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red3, 总耗时: 15.48s
+2026-08-08 09:40:38 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:40:38 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red3 ===
+2026-08-08 09:40:38 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:38 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:39 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:39 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:40:39 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red3
+2026-08-08 09:40:39 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:39 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red3
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.13s
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.01s
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-1: number=3, prob=0.253521
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-2: number=10, prob=0.090267
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-3: number=11, prob=0.071916
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-4: number=14, prob=0.068453
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-5: number=15, prob=0.068228
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] Top-6: number=18, prob=0.061141
+2026-08-08 09:40:39 [INFO] ssq.main: [predict_individual] 预测结果: [3, 10, 11, 14, 15, 18]
+2026-08-08 09:40:39 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red3
+2026-08-08 09:40:39 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red3_20260808_094039.csv, 行数: 26
+2026-08-08 09:40:39 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:40:39 [INFO] ssq.main: [batch_train_predict_model] [3/7] lgbm_Red3 完成, 耗时: 16.29s
+2026-08-08 09:40:39 [INFO] ssq.main: [batch_train_predict_model] [4/7] 处理 lgbm - Red4
+2026-08-08 09:40:39 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red4, retrain=True ===
+2026-08-08 09:40:39 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:39 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:39 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:39 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red4, retrain=True
+2026-08-08 09:40:39 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:39 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red4, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red4
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 数据列: Red4, 样本数: 3486
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.29s, 特征维度: (3355, 188), 类别数: 26
+2026-08-08 09:40:39 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 5.97s
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red4
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red4, 总耗时: 5.97s
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red4 ===
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red4
+2026-08-08 09:40:45 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:45 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red4
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.06s
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.01s
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-1: number=20, prob=0.133829
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-2: number=8, prob=0.107433
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-3: number=14, prob=0.084725
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-4: number=18, prob=0.060024
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-5: number=19, prob=0.059495
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] Top-6: number=22, prob=0.052524
+2026-08-08 09:40:45 [INFO] ssq.main: [predict_individual] 预测结果: [20, 8, 14, 18, 19, 22]
+2026-08-08 09:40:45 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red4
+2026-08-08 09:40:45 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red4_20260808_094045.csv, 行数: 26
+2026-08-08 09:40:45 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:40:45 [INFO] ssq.main: [batch_train_predict_model] [4/7] lgbm_Red4 完成, 耗时: 6.52s
+2026-08-08 09:40:45 [INFO] ssq.main: [batch_train_predict_model] [5/7] 处理 lgbm - Red5
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red5, retrain=True ===
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:45 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red5, retrain=True
+2026-08-08 09:40:45 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:45 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red5, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red5
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 数据列: Red5, 样本数: 3486
+2026-08-08 09:40:45 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:46 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.28s, 特征维度: (3348, 188), 类别数: 23
+2026-08-08 09:40:46 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:40:56 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 10.61s
+2026-08-08 09:40:56 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red5
+2026-08-08 09:40:56 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:40:56 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red5, 总耗时: 10.61s
+2026-08-08 09:40:56 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red5 ===
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:40:56 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red5
+2026-08-08 09:40:56 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:56 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red5
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.10s
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.01s
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-1: number=13, prob=0.498118
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-2: number=22, prob=0.053800
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-3: number=25, prob=0.053363
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-4: number=26, prob=0.049111
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-5: number=24, prob=0.037720
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] Top-6: number=23, prob=0.036632
+2026-08-08 09:40:56 [INFO] ssq.main: [predict_individual] 预测结果: [13, 22, 25, 26, 24, 23]
+2026-08-08 09:40:57 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red5
+2026-08-08 09:40:57 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red5_20260808_094057.csv, 行数: 23
+2026-08-08 09:40:57 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:40:57 [INFO] ssq.main: [batch_train_predict_model] [5/7] lgbm_Red5 完成, 耗时: 11.30s
+2026-08-08 09:40:57 [INFO] ssq.main: [batch_train_predict_model] [6/7] 处理 lgbm - Red6
+2026-08-08 09:40:57 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Red6, retrain=True ===
+2026-08-08 09:40:57 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:57 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:40:57 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:40:57 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Red6, retrain=True
+2026-08-08 09:40:57 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:40:57 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Red6, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red6
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 数据列: Red6, 样本数: 3486
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.29s, 特征维度: (3353, 188), 类别数: 19
+2026-08-08 09:40:57 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:41:01 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 4.61s
+2026-08-08 09:41:01 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Red6
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Red6, 总耗时: 4.61s
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Red6 ===
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Red6
+2026-08-08 09:41:02 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:41:02 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Red6
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.04s
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.01s
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-1: number=30, prob=0.181361
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-2: number=33, prob=0.140023
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-3: number=32, prob=0.122857
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-4: number=31, prob=0.099939
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-5: number=29, prob=0.098938
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] Top-6: number=28, prob=0.077469
+2026-08-08 09:41:02 [INFO] ssq.main: [predict_individual] 预测结果: [30, 33, 32, 31, 29, 28]
+2026-08-08 09:41:02 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Red6
+2026-08-08 09:41:02 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Red6_20260808_094102.csv, 行数: 19
+2026-08-08 09:41:02 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:41:02 [INFO] ssq.main: [batch_train_predict_model] [6/7] lgbm_Red6 完成, 耗时: 5.11s
+2026-08-08 09:41:02 [INFO] ssq.main: [batch_train_predict_model] [7/7] 处理 lgbm - Blue1
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lgbm, column=Blue1, retrain=True ===
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:41:02 [INFO] ssq.main: [run_train] 分派到训练函数: train_individual
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 开始训练: model_type=lgbm, column=Blue1, retrain=True
+2026-08-08 09:41:02 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:41:02 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 模型名称: lgbm_Blue1, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Blue1
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 数据列: Blue1, 样本数: 3486
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 开始数据准备...
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 数据准备完成, 耗时: 0.28s, 特征维度: (3359, 188), 类别数: 16
+2026-08-08 09:41:02 [INFO] ssq.main: [train_individual] 开始模型训练...
+2026-08-08 09:41:10 [INFO] ssq.main: [train_individual] 模型训练完成, 耗时: 8.05s
+2026-08-08 09:41:10 [INFO] ssq.main: [train_individual] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lgbm_Blue1
+2026-08-08 09:41:10 [INFO] ssq.main: [train_individual] 模型保存成功
+2026-08-08 09:41:10 [INFO] ssq.main: [train_individual] 训练完成: lgbm_Blue1, 总耗时: 8.05s
+2026-08-08 09:41:10 [INFO] ssq.main: [run_train] === 训练流程完成: lgbm ===
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lgbm, column=Blue1 ===
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_individual
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 开始预测: model_type=lgbm, column=Blue1
+2026-08-08 09:41:10 [INFO] ssq.main: [get_model_class] 查找模型类型: lgbm
+2026-08-08 09:41:10 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LightGBMModel
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 加载模型: lgbm_Blue1
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 模型加载完成, 耗时: 0.18s
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 窗口大小: 165
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] LGBM 特征工程后形状: (1, 225)
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] RF/LGBM 输入形状: (1, 188)
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 开始预测...
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 预测完成, 耗时: 0.01s
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-1: number=16, prob=0.097679
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-2: number=11, prob=0.089250
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-3: number=8, prob=0.075335
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-4: number=3, prob=0.073770
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-5: number=12, prob=0.073194
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] Top-6: number=6, prob=0.071462
+2026-08-08 09:41:10 [INFO] ssq.main: [predict_individual] 预测结果: [16, 11, 8, 3, 12, 6]
+2026-08-08 09:41:10 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lgbm, column=Blue1
+2026-08-08 09:41:10 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lgbm_Blue1_20260808_094110.csv, 行数: 16
+2026-08-08 09:41:10 [INFO] ssq.main: [run_predict] === 预测流程完成: lgbm ===
+2026-08-08 09:41:10 [INFO] ssq.main: [batch_train_predict_model] [7/7] lgbm_Blue1 完成, 耗时: 8.75s
+2026-08-08 09:41:10 [INFO] ssq.main: [batch_train_predict_model] 完成: 成功 7/7, 失败 0, 总耗时 62.77s
+2026-08-08 09:41:10 [INFO] ssq.main: [batch_train_predict_model] CSV 汇总已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_summary_lgbm_20260808_094110.csv
+2026-08-08 09:41:10 [INFO] ssq.main: [main] train-predict-batch 完成, 耗时: 62.79s
+2026-08-08 09:41:10 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 09:41:10 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:44:48 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:44:48 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 09:44:48) ===
+2026-08-08 09:44:48 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 09:44:48 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 09:44:48 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 09:44:48 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 09:44:48 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:44:48 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:44:48 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:44:48 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 09:44:48 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 09:44:48 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 09:44:49 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 09:44:49 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 09:44:49 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 09:44:50 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.95s, 特征列数: 300
+2026-08-08 09:44:50 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 09:44:50 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 09:44:54 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 09:44:54 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 09:44:54 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 09:45:48 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 53.99s
+2026-08-08 09:45:48 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 09:45:48 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 09:45:48 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 54.93s
+2026-08-08 09:45:48 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:45:48 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 09:45:48 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 09:45:48 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 09:45:48 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 09:45:48 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 09:45:48 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 09:45:48 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.99s
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.01s
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-1: number=19, prob=0.636164
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-2: number=5, prob=0.490668
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-3: number=2, prob=0.367894
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-4: number=33, prob=0.353446
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-5: number=6, prob=0.339287
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Red Top-6: number=17, prob=0.292422
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=2, prob=0.178414
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=16, prob=0.125893
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=11, prob=0.124981
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=3, prob=0.122920
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=8, prob=0.121179
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=4, prob=0.114386
+2026-08-08 09:45:49 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[19, 5, 2, 33, 6, 17], blue=[2, 16, 11, 3, 8, 4]
+2026-08-08 09:45:49 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 09:45:49 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_094549.csv, 行数: 12
+2026-08-08 09:45:49 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 09:45:49 [INFO] ssq.main: [main] train-predict 完成, 耗时: 61.51s
+2026-08-08 09:45:49 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 09:45:49 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:48:02 [INFO] ssq.main: [main] ============================================================
+2026-08-08 09:48:02 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 09:48:02) ===
+2026-08-08 09:48:02 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 09:48:02 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 09:48:02 [INFO] ssq.main: [main] train-predict: model=lstm_reds, retrain=True
+2026-08-08 09:48:02 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_reds, column=None, retrain=True ===
+2026-08-08 09:48:02 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:48:02 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:48:02 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:48:02 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 09:48:02 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_reds, retrain=True
+2026-08-08 09:48:02 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_reds
+2026-08-08 09:48:03 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMRedModel
+2026-08-08 09:48:03 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_reds
+2026-08-08 09:48:03 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 09:48:04 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.97s, 特征列数: 300
+2026-08-08 09:48:04 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 09:48:04 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 09:48:07 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 33)
+2026-08-08 09:48:07 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 09:48:07 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 09:50:00 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 112.62s
+2026-08-08 09:50:00 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_reds
+2026-08-08 09:50:00 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 09:50:00 [INFO] ssq.main: [train_lstm] 训练完成: lstm_reds, 总耗时: 113.59s
+2026-08-08 09:50:00 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_reds ===
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_reds, column=None ===
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 09:50:00 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 09:50:00 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_reds
+2026-08-08 09:50:00 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_reds
+2026-08-08 09:50:00 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMRedModel
+2026-08-08 09:50:00 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_reds
+2026-08-08 09:50:00 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 09:50:00 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 1.04s
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] LSTM_REDS 预测完成, 耗时: 0.00s
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-1: number=2, prob=0.693177
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-2: number=5, prob=0.549456
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-3: number=1, prob=0.465483
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-4: number=8, prob=0.439315
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-5: number=13, prob=0.423529
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] Red Top-6: number=24, prob=0.406694
+2026-08-08 09:50:01 [INFO] ssq.main: [predict_lstm] LSTM_REDS 结果: [2, 5, 1, 8, 13, 24]
+2026-08-08 09:50:01 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_reds, column=None
+2026-08-08 09:50:01 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_reds_20260808_095001.csv, 行数: 6
+2026-08-08 09:50:01 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_reds ===
+2026-08-08 09:50:01 [INFO] ssq.main: [main] train-predict 完成, 耗时: 119.27s
+2026-08-08 09:50:01 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 09:50:01 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:23:16 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:23:16 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:23:16) ===
+2026-08-08 10:23:16 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:23:16 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:23:16 [INFO] ssq.main: [main] train-predict: model=lstm_reds, retrain=True
+2026-08-08 10:23:16 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_reds, column=None, retrain=True ===
+2026-08-08 10:23:16 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:23:16 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:23:16 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:23:16 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:23:16 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_reds, retrain=True
+2026-08-08 10:23:16 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_reds
+2026-08-08 10:23:18 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMRedModel
+2026-08-08 10:23:18 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_reds
+2026-08-08 10:23:18 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:23:19 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.96s, 特征列数: 300
+2026-08-08 10:23:19 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:23:19 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:23:22 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 33)
+2026-08-08 10:23:22 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:23:22 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:25:20 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 118.39s
+2026-08-08 10:25:20 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_reds
+2026-08-08 10:25:20 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:25:20 [INFO] ssq.main: [train_lstm] 训练完成: lstm_reds, 总耗时: 119.35s
+2026-08-08 10:25:21 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_reds ===
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_reds, column=None ===
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:25:21 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:25:21 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_reds
+2026-08-08 10:25:21 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_reds
+2026-08-08 10:25:21 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMRedModel
+2026-08-08 10:25:21 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_reds
+2026-08-08 10:25:21 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:25:21 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 1.02s
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] LSTM_REDS 预测完成, 耗时: 0.00s
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-1: number=5, prob=0.674337
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-2: number=6, prob=0.446789
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-3: number=27, prob=0.408334
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-4: number=14, prob=0.394559
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-5: number=21, prob=0.385078
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] Red Top-6: number=10, prob=0.268298
+2026-08-08 10:25:22 [INFO] ssq.main: [predict_lstm] LSTM_REDS 结果: [5, 6, 27, 14, 21, 10]
+2026-08-08 10:25:22 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_reds, column=None
+2026-08-08 10:25:22 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_reds_20260808_102522.csv, 行数: 33
+2026-08-08 10:25:22 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_reds ===
+2026-08-08 10:25:22 [INFO] ssq.main: [main] train-predict 完成, 耗时: 125.18s
+2026-08-08 10:25:22 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:25:22 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:31:52 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:31:52 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:31:52) ===
+2026-08-08 10:31:52 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:31:52 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:31:52 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 10:31:52 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 10:31:52 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:31:52 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:31:52 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:31:52 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:31:52 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 10:31:53 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:31:54 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 10:31:54 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:31:54 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:31:55 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.95s, 特征列数: 300
+2026-08-08 10:31:55 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:31:55 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:31:58 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 10:31:58 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:31:58 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:32:55 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 56.54s
+2026-08-08 10:32:55 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:32:55 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:32:55 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 57.49s
+2026-08-08 10:32:55 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:32:55 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:32:55 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 10:32:55 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:32:55 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 10:32:55 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 10:32:55 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:32:55 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.98s
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.00s
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-1: number=33, prob=0.367207
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-2: number=3, prob=0.322221
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-3: number=1, prob=0.311771
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-4: number=19, prob=0.296581
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-5: number=29, prob=0.289885
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Red Top-6: number=17, prob=0.289163
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=16, prob=0.126836
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=12, prob=0.121835
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=8, prob=0.119507
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=2, prob=0.112844
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=6, prob=0.100444
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=1, prob=0.071936
+2026-08-08 10:32:56 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[33, 3, 1, 19, 29, 17], blue=[16, 12, 8, 2, 6, 1]
+2026-08-08 10:32:56 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 10:32:56 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_103256.csv, 行数: 49
+2026-08-08 10:32:56 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 10:32:56 [INFO] ssq.main: [main] train-predict 完成, 耗时: 63.15s
+2026-08-08 10:32:56 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:32:56 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:36:16 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:36:16 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:36:16) ===
+2026-08-08 10:36:16 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:36:16 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:36:16 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 10:36:16 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 10:36:16 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:36:16 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:36:16 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:36:16 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:36:16 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 10:36:16 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:36:17 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 10:36:17 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:36:17 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:36:18 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.92s, 特征列数: 300
+2026-08-08 10:36:18 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:36:18 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:36:21 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 10:36:21 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:36:21 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:37:13 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 52.12s
+2026-08-08 10:37:13 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:37:13 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:37:13 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 53.05s
+2026-08-08 10:37:13 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:37:13 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:37:13 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 10:37:13 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:37:13 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 10:37:13 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 10:37:13 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:37:13 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.97s
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.00s
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-1: number=17, prob=0.568069
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-2: number=5, prob=0.533132
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-3: number=19, prob=0.496867
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-4: number=1, prob=0.445071
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-5: number=2, prob=0.399260
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Red Top-6: number=3, prob=0.340009
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=16, prob=0.150394
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=12, prob=0.137473
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=4, prob=0.106643
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=8, prob=0.103162
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=6, prob=0.093255
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=2, prob=0.085767
+2026-08-08 10:37:14 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[17, 5, 19, 1, 2, 3], blue=[16, 12, 4, 8, 6, 2]
+2026-08-08 10:37:14 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 10:37:14 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_103714.csv, 行数: 49
+2026-08-08 10:37:14 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 10:37:14 [INFO] ssq.main: [main] train-predict 完成, 耗时: 58.78s
+2026-08-08 10:37:14 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:37:14 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:38:04 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:38:04 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:38:04) ===
+2026-08-08 10:38:04 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:38:04 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:38:04 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 10:38:04 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 10:38:04 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:38:04 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:38:04 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:38:04 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:38:04 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 10:38:05 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:38:06 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 10:38:06 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:38:06 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:38:07 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.97s, 特征列数: 300
+2026-08-08 10:38:07 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:38:07 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:38:10 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 10:38:10 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:38:10 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:39:10 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 60.40s
+2026-08-08 10:39:10 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:39:10 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:39:10 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 61.37s
+2026-08-08 10:39:11 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:39:11 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:39:11 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 10:39:11 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:39:11 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 10:39:11 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 10:39:11 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:39:11 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.99s
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.00s
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-1: number=27, prob=0.733853
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-2: number=21, prob=0.479317
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-3: number=29, prob=0.478541
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-4: number=13, prob=0.367835
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-5: number=28, prob=0.341362
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Red Top-6: number=19, prob=0.301326
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=15, prob=0.113631
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=12, prob=0.106769
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=3, prob=0.104111
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=4, prob=0.096778
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=5, prob=0.079773
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=14, prob=0.068903
+2026-08-08 10:39:12 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[27, 21, 29, 13, 28, 19], blue=[15, 12, 3, 4, 5, 14]
+2026-08-08 10:39:12 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 10:39:12 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_103912.csv, 行数: 49
+2026-08-08 10:39:12 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 10:39:12 [INFO] ssq.main: [main] train-predict 完成, 耗时: 67.12s
+2026-08-08 10:39:12 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:39:12 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:40:03 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:40:03 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:40:03) ===
+2026-08-08 10:40:03 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:40:03 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:40:03 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 10:40:03 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 10:40:03 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:40:03 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:40:03 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:40:03 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:40:03 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 10:40:03 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:40:04 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 10:40:04 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:40:04 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:40:05 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.95s, 特征列数: 300
+2026-08-08 10:40:05 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:40:05 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:40:08 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 10:40:09 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:40:09 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:41:01 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 52.71s
+2026-08-08 10:41:01 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 10:41:01 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:41:01 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 53.66s
+2026-08-08 10:41:01 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:41:01 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:41:01 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 10:41:01 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 10:41:01 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 10:41:01 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 10:41:01 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:41:01 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.98s
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.00s
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-1: number=2, prob=0.417438
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-2: number=1, prob=0.302468
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-3: number=5, prob=0.297797
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-4: number=19, prob=0.250355
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-5: number=4, prob=0.250011
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Red Top-6: number=15, prob=0.246027
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=6, prob=0.116670
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=14, prob=0.092601
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=12, prob=0.091971
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=16, prob=0.085480
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=15, prob=0.082736
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=8, prob=0.075985
+2026-08-08 10:41:02 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[2, 1, 5, 19, 4, 15], blue=[6, 14, 12, 16, 15, 8]
+2026-08-08 10:41:02 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 10:41:02 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_104102.csv, 行数: 49
+2026-08-08 10:41:02 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 10:41:02 [INFO] ssq.main: [main] train-predict 完成, 耗时: 59.52s
+2026-08-08 10:41:02 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:41:02 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:42:04 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:42:04 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:42:04) ===
+2026-08-08 10:42:04 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:42:04 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:42:04 [INFO] ssq.main: [main] train-predict: model=lstm_blue, retrain=True
+2026-08-08 10:42:04 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_blue, column=None, retrain=True ===
+2026-08-08 10:42:04 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:42:04 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:42:04 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:42:04 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 10:42:04 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_blue, retrain=True
+2026-08-08 10:42:04 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_blue
+2026-08-08 10:42:06 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMBlueModel
+2026-08-08 10:42:06 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_blue
+2026-08-08 10:42:06 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 10:42:07 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.97s, 特征列数: 300
+2026-08-08 10:42:07 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 10:42:07 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 10:42:09 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 16)
+2026-08-08 10:42:09 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 10:42:09 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 10:43:07 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 58.36s
+2026-08-08 10:43:07 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_blue
+2026-08-08 10:43:07 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 10:43:07 [INFO] ssq.main: [train_lstm] 训练完成: lstm_blue, 总耗时: 59.33s
+2026-08-08 10:43:07 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_blue ===
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_blue, column=None ===
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:43:07 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 10:43:07 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_blue
+2026-08-08 10:43:07 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_blue
+2026-08-08 10:43:07 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMBlueModel
+2026-08-08 10:43:07 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_blue
+2026-08-08 10:43:07 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:43:07 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.98s
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] LSTM_BLUE 预测完成, 耗时: 0.00s
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=16, prob=0.136550
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=4, prob=0.130956
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=11, prob=0.128929
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=3, prob=0.114384
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=10, prob=0.070427
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=1, prob=0.069401
+2026-08-08 10:43:08 [INFO] ssq.main: [predict_lstm] LSTM_BLUE 结果: [16, 4, 11, 3, 10, 1]
+2026-08-08 10:43:08 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_blue, column=None
+2026-08-08 10:43:08 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_blue_20260808_104308.csv, 行数: 16
+2026-08-08 10:43:08 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_blue ===
+2026-08-08 10:43:08 [INFO] ssq.main: [main] train-predict 完成, 耗时: 64.09s
+2026-08-08 10:43:08 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:43:08 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:46:40 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:46:40 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:46:40) ===
+2026-08-08 10:46:40 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:46:40 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:46:40 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 10:46:40 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 10:46:40 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:46:40 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:46:40 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:46:40 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 10:46:40 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 10:46:40 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:46:42 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 10:46:42 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:46:42 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 1.01s
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 10:46:43 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 10:47:16 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 33.32s
+2026-08-08 10:47:16 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:47:16 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 10:47:16 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 10:47:16 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 10:47:16 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.02s
+2026-08-08 10:47:16 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 0.97s
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.01s
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[5, 10, 10, 13, 18, 26], blue=7
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=18, prob=0.246831
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=13, prob=0.243464
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=15, prob=0.243325
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=10, prob=0.241506
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=8, prob=0.227477
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=20, prob=0.226201
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=7, prob=0.097920
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=5, prob=0.095576
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=2, prob=0.076287
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=12, prob=0.075025
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=3, prob=0.071465
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=11, prob=0.068973
+2026-08-08 10:47:17 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[18, 13, 15, 10, 8, 20], blue=[7, 5, 2, 12, 3, 11]
+2026-08-08 10:47:17 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 10:47:17 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_104717.csv, 行数: 12
+2026-08-08 10:47:17 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 10:47:17 [INFO] ssq.main: [main] train-predict 完成, 耗时: 37.05s
+2026-08-08 10:47:17 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:47:17 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:47:45 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:47:45 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:47:45) ===
+2026-08-08 10:47:45 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:47:45 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:47:45 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 10:47:45 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 10:47:45 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:47:45 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:47:45 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:47:45 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 10:47:45 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 10:47:45 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:47:47 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 10:47:47 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:47:47 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 0.94s
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 10:47:48 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 10:48:39 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 50.55s
+2026-08-08 10:48:39 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:48:39 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 10:48:39 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 10:48:39 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 10:48:39 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:48:39 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 0.98s
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.00s
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[3, 7, 9, 26, 28, 30], blue=3
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=10, prob=0.240941
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=25, prob=0.235004
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=8, prob=0.234952
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=7, prob=0.233446
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=21, prob=0.226477
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=18, prob=0.225361
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=3, prob=0.083204
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=16, prob=0.079981
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=10, prob=0.073002
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=8, prob=0.072080
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=12, prob=0.067986
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=11, prob=0.066619
+2026-08-08 10:48:40 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[10, 25, 8, 7, 21, 18], blue=[3, 16, 10, 8, 12, 11]
+2026-08-08 10:48:40 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 10:48:40 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_104840.csv, 行数: 12
+2026-08-08 10:48:40 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 10:48:40 [INFO] ssq.main: [main] train-predict 完成, 耗时: 54.26s
+2026-08-08 10:48:40 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:48:40 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:49:21 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:49:21 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:49:21) ===
+2026-08-08 10:49:21 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:49:21 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:49:21 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 10:49:21 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 10:49:21 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:49:21 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:49:21 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:49:21 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 10:49:21 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 10:49:21 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:49:22 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 10:49:22 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:49:22 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 0.94s
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 10:49:23 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 10:49:45 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 21.77s
+2026-08-08 10:49:45 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:49:45 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 10:49:45 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 10:49:45 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 10:49:45 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:49:45 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 1.01s
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.00s
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[9, 16, 17, 19, 25, 28], blue=11
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=28, prob=0.263246
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=15, prob=0.258388
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=10, prob=0.241314
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=21, prob=0.238965
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=25, prob=0.237735
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=14, prob=0.232786
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=11, prob=0.102278
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=1, prob=0.093256
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=10, prob=0.088087
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=9, prob=0.079963
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=6, prob=0.075975
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=15, prob=0.066659
+2026-08-08 10:49:46 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[28, 15, 10, 21, 25, 14], blue=[11, 1, 10, 9, 6, 15]
+2026-08-08 10:49:46 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 10:49:46 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_104946.csv, 行数: 12
+2026-08-08 10:49:46 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 10:49:46 [INFO] ssq.main: [main] train-predict 完成, 耗时: 25.40s
+2026-08-08 10:49:46 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:49:46 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:50:32 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:50:32 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:50:32) ===
+2026-08-08 10:50:32 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:50:32 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:50:32 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 10:50:32 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 10:50:32 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:50:32 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:50:32 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:50:32 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 10:50:32 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 10:50:32 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:50:33 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 10:50:33 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:50:33 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 0.96s
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 10:50:34 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 10:51:24 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 49.94s
+2026-08-08 10:51:24 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:51:24 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 10:51:24 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 10:51:24 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 10:51:24 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:51:24 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 1.01s
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.00s
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[6, 11, 15, 24, 25, 31], blue=12
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=8, prob=0.244998
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=27, prob=0.241959
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=25, prob=0.241945
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=9, prob=0.241614
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=13, prob=0.240864
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=24, prob=0.235304
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=12, prob=0.093138
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=16, prob=0.091945
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=9, prob=0.080493
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=7, prob=0.072362
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=1, prob=0.072226
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=13, prob=0.070264
+2026-08-08 10:51:25 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[8, 27, 25, 9, 13, 24], blue=[12, 16, 9, 7, 1, 13]
+2026-08-08 10:51:25 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 10:51:25 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_105125.csv, 行数: 12
+2026-08-08 10:51:25 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 10:51:25 [INFO] ssq.main: [main] train-predict 完成, 耗时: 53.66s
+2026-08-08 10:51:25 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:51:25 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:52:01 [INFO] ssq.main: [main] ============================================================
+2026-08-08 10:52:01 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 10:52:01) ===
+2026-08-08 10:52:01 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 10:52:01 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 10:52:01 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 10:52:01 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 10:52:01 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:52:01 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:52:01 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:52:01 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 10:52:01 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 10:52:01 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:52:03 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 10:52:03 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:52:03 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 0.96s
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 10:52:04 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 10:52:47 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 43.18s
+2026-08-08 10:52:47 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 10:52:47 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 10:52:47 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 10:52:47 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 10:52:47 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.01s
+2026-08-08 10:52:47 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 0.97s
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.00s
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[6, 9, 15, 17, 20, 28], blue=4
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=28, prob=0.267387
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=20, prob=0.252241
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=17, prob=0.250466
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=27, prob=0.229144
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=7, prob=0.227910
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=9, prob=0.227067
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=4, prob=0.097618
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=7, prob=0.090375
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=9, prob=0.084150
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=14, prob=0.079827
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=3, prob=0.077338
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=8, prob=0.074675
+2026-08-08 10:52:48 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[28, 20, 17, 27, 7, 9], blue=[4, 7, 9, 14, 3, 8]
+2026-08-08 10:52:48 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 10:52:48 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_105248.csv, 行数: 12
+2026-08-08 10:52:48 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 10:52:48 [INFO] ssq.main: [main] train-predict 完成, 耗时: 46.86s
+2026-08-08 10:52:48 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 10:52:48 [INFO] ssq.main: [main] ============================================================
+2026-08-08 11:45:51 [INFO] ssq.main: [main] ============================================================
+2026-08-08 11:45:51 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 11:45:51) ===
+2026-08-08 11:45:51 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 11:45:51 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 11:45:51 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 11:45:51 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 11:45:51 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:45:51 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:45:51 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 11:45:51 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 11:45:51 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 11:45:51 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 11:45:52 [ERROR] ssq.main: [main] 操作失败: name 'BaseModel' is not defined
+Traceback (most recent call last):
+  File "D:\WorkSpace\py\SSQ\ml\main.py", line 1117, in main
+    run_train(model_type, None, data_path, retrain)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\WorkSpace\py\SSQ\ml\main.py", line 410, in run_train
+    result = train_lstm(model_type, df, retrain)
+  File "D:\WorkSpace\py\SSQ\ml\main.py", line 215, in train_lstm
+    model_class = get_model_class(model_type)
+  File "D:\WorkSpace\py\SSQ\ml\main.py", line 128, in get_model_class
+    module = importlib.import_module(module_path)
+  File "D:\anaconda3\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1406, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1314, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 491, in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1406, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 759, in exec_module
+  File "<frozen importlib._bootstrap>", line 491, in _call_with_frames_removed
+  File "D:\WorkSpace\py\SSQ\ml\models\__init__.py", line 12, in <module>
+    from ml.models.lstm_model import LSTMBlueModel, LSTMRedModel, LSTMAllModel
+  File "D:\WorkSpace\py\SSQ\ml\models\lstm_model.py", line 75, in <module>
+    class _BaseLSTM(BaseModel):
+                    ^^^^^^^^^
+NameError: name 'BaseModel' is not defined
+2026-08-08 11:48:05 [INFO] ssq.main: [main] ============================================================
+2026-08-08 11:48:05 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 11:48:05) ===
+2026-08-08 11:48:06 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 11:48:06 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 11:48:06 [INFO] ssq.main: [main] train-predict: model=lstm_all, retrain=True
+2026-08-08 11:48:06 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=lstm_all, column=None, retrain=True ===
+2026-08-08 11:48:06 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:48:06 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:48:06 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 11:48:06 [INFO] ssq.main: [run_train] 分派到训练函数: train_lstm
+2026-08-08 11:48:06 [INFO] ssq.main: [train_lstm] 开始训练: model_type=lstm_all, retrain=True
+2026-08-08 11:48:06 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 11:48:07 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: LSTMAllModel
+2026-08-08 11:48:07 [INFO] ssq.main: [train_lstm] 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 11:48:07 [INFO] ssq.main: [train_lstm] 开始特征工程...
+2026-08-08 11:48:08 [INFO] ssq.main: [train_lstm] 特征工程完成, 耗时: 0.92s, 特征列数: 300
+2026-08-08 11:48:08 [INFO] ssq.main: [train_lstm] 窗口大小: 128
+2026-08-08 11:48:08 [INFO] ssq.main: [train_lstm] 准备训练数据...
+2026-08-08 11:48:11 [INFO] ssq.main: [train_lstm] 数据形状: X=(3357, 128, 300), y=(3357, 49)
+2026-08-08 11:48:11 [INFO] ssq.main: [train_lstm] 数据划分: 训练集=1678, 验证集=1679
+2026-08-08 11:48:11 [INFO] ssq.main: [train_lstm] 开始模型训练...
+2026-08-08 11:49:05 [INFO] ssq.main: [train_lstm] 模型训练完成, 耗时: 53.86s
+2026-08-08 11:49:05 [INFO] ssq.main: [train_lstm] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\lstm_all
+2026-08-08 11:49:05 [INFO] ssq.main: [train_lstm] 模型保存成功
+2026-08-08 11:49:05 [INFO] ssq.main: [train_lstm] 训练完成: lstm_all, 总耗时: 54.78s
+2026-08-08 11:49:05 [INFO] ssq.main: [run_train] === 训练流程完成: lstm_all ===
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=lstm_all, column=None ===
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 11:49:05 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_lstm
+2026-08-08 11:49:05 [INFO] ssq.main: [predict_lstm] 开始预测: model_type=lstm_all
+2026-08-08 11:49:05 [INFO] ssq.main: [get_model_class] 查找模型类型: lstm_all
+2026-08-08 11:49:05 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: LSTMAllModel
+2026-08-08 11:49:05 [INFO] ssq.main: [predict_lstm] 加载模型: lstm_all
+2026-08-08 11:49:05 [INFO] ssq.main: [predict_lstm] 模型加载完成, 耗时: 0.01s
+2026-08-08 11:49:05 [INFO] ssq.main: [predict_lstm] 开始特征工程...
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] 特征工程完成, 耗时: 0.94s
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] 窗口大小: 128, 特征数: 300
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] 输入张量形状: (1, 128, 300)
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] 应用标准化缩放...
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] 开始预测...
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] LSTM_ALL 预测完成, 耗时: 0.00s
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-1: number=2, prob=0.529409
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-2: number=17, prob=0.373373
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-3: number=13, prob=0.336927
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-4: number=31, prob=0.320488
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-5: number=5, prob=0.314151
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Red Top-6: number=27, prob=0.290222
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-1: number=2, prob=0.109630
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-2: number=1, prob=0.091092
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-3: number=3, prob=0.083490
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-4: number=4, prob=0.078481
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-5: number=14, prob=0.070890
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] Blue Top-6: number=15, prob=0.060566
+2026-08-08 11:49:06 [INFO] ssq.main: [predict_lstm] LSTM_ALL 结果: red=[2, 17, 13, 31, 5, 27], blue=[2, 1, 3, 4, 14, 15]
+2026-08-08 11:49:06 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=lstm_all, column=None
+2026-08-08 11:49:06 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_lstm_all_20260808_114906.csv, 行数: 49
+2026-08-08 11:49:06 [INFO] ssq.main: [run_predict] === 预测流程完成: lstm_all ===
+2026-08-08 11:49:06 [INFO] ssq.main: [main] train-predict 完成, 耗时: 60.69s
+2026-08-08 11:49:06 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 11:49:06 [INFO] ssq.main: [main] ============================================================
+2026-08-08 11:55:52 [INFO] ssq.main: [main] ============================================================
+2026-08-08 11:55:52 [INFO] ssq.main: [main] === 双色球预测系统启动 (运行时间: 2026-08-08 11:55:52) ===
+2026-08-08 11:55:52 [INFO] ssq.main: [main] 命令行参数: command=train-predict
+2026-08-08 11:55:52 [INFO] ssq.main: [main] 执行命令: train-predict
+2026-08-08 11:55:52 [INFO] ssq.main: [main] train-predict: model=cnn_math, retrain=True
+2026-08-08 11:55:52 [INFO] ssq.main: [run_train] === 开始训练流程: model_type=cnn_math, column=None, retrain=True ===
+2026-08-08 11:55:52 [INFO] ssq.main: [run_train] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:55:52 [INFO] ssq.main: [run_train] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:55:52 [INFO] ssq.main: [run_train] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 11:55:52 [INFO] ssq.main: [run_train] 分派到训练函数: train_cnn
+2026-08-08 11:55:52 [INFO] ssq.main: [train_cnn] 开始训练: model_type=cnn_math, retrain=True
+2026-08-08 11:55:52 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 11:55:53 [INFO] ssq.main: [get_model_class] 动态加载模型类成功: CNNMathModel
+2026-08-08 11:55:53 [INFO] ssq.main: [train_cnn] 模型名称: cnn_math, 保存路径: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 11:55:53 [INFO] ssq.main: [train_cnn] CNN_MATH: 开始特征工程...
+2026-08-08 11:55:54 [INFO] ssq.main: [train_cnn] CNN_MATH 特征工程完成, 耗时: 0.91s
+2026-08-08 11:55:54 [INFO] ssq.main: [train_cnn] CNN_MATH 准备标签数据...
+2026-08-08 11:55:54 [INFO] ssq.main: [train_cnn] CNN_MATH 准备训练数据...
+2026-08-08 11:55:54 [INFO] ssq.main: [train_cnn] CNN_MATH 数据形状: X=(3453, 32, 300), y_class=(3453, 7), y_reg=(3453, 7)
+2026-08-08 11:55:54 [INFO] ssq.main: [train_cnn] CNN_MATH 划分训练集/验证集...
+2026-08-08 11:55:55 [INFO] ssq.main: [train_cnn] CNN_MATH 开始训练...
+2026-08-08 11:56:22 [INFO] ssq.main: [train_cnn] CNN_MATH 训练完成, 耗时: 27.93s
+2026-08-08 11:56:22 [INFO] ssq.main: [train_cnn] 保存模型到: D:\WorkSpace\py\SSQ\ml\saved_models\cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [train_cnn] 模型保存成功: cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [train_cnn] 训练完成: cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [run_train] === 训练流程完成: cnn_math ===
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] === 开始预测流程: model_type=cnn_math, column=None ===
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] 数据路径: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] 加载数据: D:\WorkSpace\py\SSQ\ml\data\1.csv
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] 数据加载完成, 耗时: 0.01s, 共 3486 期
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] 最近一期: 红球 [2, 4, 15, 23, 25, 27] | 蓝球 3
+2026-08-08 11:56:22 [INFO] ssq.main: [run_predict] 分派到预测函数: predict_cnn
+2026-08-08 11:56:22 [INFO] ssq.main: [predict_cnn] 开始预测: model_type=cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [get_model_class] 查找模型类型: cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [get_model_class] 从缓存返回模型类: CNNMathModel
+2026-08-08 11:56:22 [INFO] ssq.main: [predict_cnn] 加载模型: cnn_math
+2026-08-08 11:56:22 [INFO] ssq.main: [predict_cnn] 模型加载完成, 耗时: 0.01s
+2026-08-08 11:56:22 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始特征工程...
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 特征工程完成, 耗时: 0.96s
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 输入张量形状: (1, 32, 300)
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 开始预测...
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测完成, 耗时: 0.00s
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 预测: red=[5, 13, 15, 16, 23, 29], blue=2
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-1: number=6, prob=0.237164
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-2: number=23, prob=0.234687
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-3: number=22, prob=0.232127
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-4: number=15, prob=0.231778
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-5: number=28, prob=0.226708
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Red Top-6: number=13, prob=0.226617
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-1: number=2, prob=0.108190
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-2: number=1, prob=0.099488
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-3: number=6, prob=0.089228
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-4: number=12, prob=0.080783
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-5: number=9, prob=0.077625
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH Blue Top-6: number=5, prob=0.076642
+2026-08-08 11:56:23 [INFO] ssq.main: [predict_cnn] CNN_MATH 结果: red=[6, 23, 22, 15, 28, 13], blue=[2, 1, 6, 12, 9, 5]
+2026-08-08 11:56:23 [INFO] ssq.main: [save_prediction] 保存预测结果: model_type=cnn_math, column=None
+2026-08-08 11:56:23 [INFO] ssq.main: [save_prediction] CSV 已保存: D:\WorkSpace\py\SSQ\ml\outputs\prediction_cnn_math_20260808_115623.csv, 行数: 12
+2026-08-08 11:56:23 [INFO] ssq.main: [run_predict] === 预测流程完成: cnn_math ===
+2026-08-08 11:56:23 [INFO] ssq.main: [main] train-predict 完成, 耗时: 31.49s
+2026-08-08 11:56:23 [INFO] ssq.main: [main] === 双色球预测系统退出 ===
+2026-08-08 11:56:23 [INFO] ssq.main: [main] ============================================================

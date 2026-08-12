@@ -1,0 +1,26 @@
+# 虚拟环境(由 requirements.lock.txt 重建, 不入库)
+.venv/
+venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Hermes 运行时/凭据(绝不上库)
+.hermes/
+*.env
+
+# 临时/中间产物
+*.tmp
+analysis/results/_*.txt
+analysis/results/full_run.log
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -1,0 +1,7 @@
+model,mode,red_mean_overlap,red_hit_ge3,blue_top1_acc,n_periods
+set_red(unified),new,1.2195,0.0732,0.0,41
+rf(legacy-approx),legacy,1.2439,0.122,0.0,41
+lstm_reds(legacy),legacy,1.1463,0.0244,0.0,41
+cnn_math(legacy),legacy,1.0976,0.0488,0.0488,41
+freq_baseline,baseline,0.9756,,,41
+random_baseline,baseline,1.0688,,,41
