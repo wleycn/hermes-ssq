@@ -20,3 +20,6 @@ torch==2.13.0+cpu
 requests==2.34.2
 urllib3==2.7.0
 lxml>=5.0.0
+
+# 数据库连接 (PostgreSQL 存储层)
+psycopg==3.3.4
