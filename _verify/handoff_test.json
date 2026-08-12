@@ -1,0 +1,110 @@
+{
+  "handoff_type": "TEST_REPORT",
+  "role": "TestAutomationEngineer",
+  "suite": "SSQ data-layer refactor cross-verification",
+  "based_on": "handoff_dev.json",
+  "summary": {
+    "total": 27,
+    "passed": 27,
+    "failed": 0,
+    "flaky": 0,
+    "duration_ms": 4340
+  },
+  "coverage": [
+    {
+      "id": "REG-01",
+      "title": "回归套件全绿",
+      "method": "独立重跑 pytest _verify/ -v（不依赖 Dev 自报）",
+      "result": "PASS",
+      "evidence": "27 passed in 4.34s；分布：test_batch_predict_pg 5, test_data_layer 6, test_lstm_speed_config 3, test_partial_models 4, test_pg_integration 1, test_select_and_mail 4, test_ssq_update 4"
+    },
+    {
+      "id": "DH-01",
+      "title": "开奖表行数=3488",
+      "method": "直连 PG SELECT COUNT(*)（绕过 Dev 函数），并独立读 1.csv 行数对比",
+      "result": "PASS",
+      "evidence": "ssq.draw_history COUNT=3488；COUNT(DISTINCT dNum)=3488（无重复主键）；1.csv 行数=3488，两者一致"
+    },
+    {
+      "id": "DH-02",
+      "title": "首末行正确",
+      "method": "直连 PG 查 ORDER BY dDate 首/末行",
+      "result": "PASS",
+      "evidence": "首行 dNum=2003001 dDate=2003-02-23；末行 dNum=2026092 dDate=2026-08-11"
+    },
+    {
+      "id": "DH-03",
+      "title": "中间期抽查 2026001 与 1.csv 一致",
+      "method": "pandas 读 1.csv 归一化 dNum 为 7 位，取 2026001 红蓝；PG SELECT 同 dNum 对比",
+      "result": "PASS",
+      "evidence": "CSV={Red1-6:2,6,11,12,13,33 Blue1:15 dDate:2026-01-01}；PG 完全一致；spot_check_2026001_match=true"
+    },
+    {
+      "id": "DD-01",
+      "title": "data_date 全非空",
+      "method": "直连 PG SELECT COUNT WHERE data_date IS NULL；另查 information_schema 列定义",
+      "result": "PASS",
+      "evidence": "data_date NULL=0；列 is_nullable=NO，DEFAULT CURRENT_DATE（兜底）"
+    },
+    {
+      "id": "DD-02",
+      "title": "data_date 取值为北京日期(2026-08-13)无 UTC 偏差",
+      "method": "GROUP BY data_date 看分布；对比 server datetime.now().date()；验证 data_date==run_at::date",
+      "result": "PASS",
+      "evidence": "distinct 仅 {2026-08-13:245}；mp_total=245 全部=data_date；mp_mismatch_runat=0（无 UTC 偏移行）；server_now_date=2026-08-13"
+    },
+    {
+      "id": "CL-01",
+      "title": "cleanup 默认 dry-run 安全（不删）",
+      "method": "跑 `python cleanup_predictions.py`（默认 dry-run），抓取输出与前后行数",
+      "result": "PASS",
+      "evidence": "输出 '[dry-run] cutoff=2026-07-14 will_delete=0'；前后 model_predictions=245、draw_history=3488 不变；未执行任何 DELETE"
+    },
+    {
+      "id": "CL-02",
+      "title": "draw_history 绝不被 cleanup 触碰",
+      "method": "dry-run 前后对比 draw_history 行数（CL-01 已含）",
+      "result": "PASS",
+      "evidence": "draw_history 前=3488 后=3488；源码 keep_recent_30d 仅 SELECT/DELETE model_predictions，硬编码排除 draw_history"
+    },
+    {
+      "id": "CL-03",
+      "title": "显式 --dry-run 模式不可执行（CLI 契约偏差）",
+      "method": "尝试 `python cleanup_predictions.py --dry-run`",
+      "result": "FINDING",
+      "evidence": "argparse 仅定义 --confirm，无 --dry-run 标志；执行报 'unrecognized arguments: --dry-run'。默认（无参）即 dry-run。D5 描述'双模式 --dry-run/--confirm'措辞不精确，但安全语义成立（默认=dry-run，--confirm 才删）"
+    },
+    {
+      "id": "ID-01",
+      "title": "幂等性：重跑 pg_schema.py",
+      "method": "二次执行 `python pg_schema.py`，再独立查计数/首尾行/列状态",
+      "result": "PASS",
+      "evidence": "无报错；'[import] draw_history rows=3488'；draw_history COUNT=3488；data_date NULL=0；首/末 dDate 不变；distinct data_date=1（DELETE+重插幂等，存量回填幂等）"
+    }
+  ],
+  "failures": [],
+  "risks": [
+    {
+      "id": "RISK-T1",
+      "severity": "LOW",
+      "title": "CLI 标志命名与文档不一致",
+      "detail": "D5 称 cleanup CLI 为'双模式 --dry-run/--confirm'，但实现只支持无参(=dry-run)与 --confirm，不存在字面 --dry-run 标志。安全默认正确、不可逆删除仅在 --confirm 下发生，故无安全事故；但任务'跑 --dry-run 显式模式'无法逐字执行。建议将文档改为'默认 dry-run（无参），--confirm 真实删除'以消歧。",
+      "blocker": false
+    },
+    {
+      "id": "RISK-T2",
+      "severity": "INFO",
+      "title": "draw_history 与 1.csv 漂移需手动重导",
+      "detail": "Dev 注 RISK-3：1.csv 经 append_ssq/update_ssq 更新后须重跑 import_draw_history。函数幂等可重复执行，但无自动同步。非本次改造回归，仅提醒。"
+    }
+  ],
+  "verification_notes": [
+    "所有命令均真实执行；未执行 --confirm（不可逆删除），符合'不可逆操作安全'约束。",
+    "未修改任何生产代码或数据；仅执行只读查询 + 允许的 dry-run + 幂等重跑 pg_schema.py。",
+    "pytest 27 用例独立重跑全绿，含 Dev 新增 test_data_layer 6 项。",
+    "data_date 北京日期校验：实测 245 行全部=2026-08-13 且与 run_at::date 一致，证明 DEV-1 修正（弃用 AT TIME ZONE 修正 UTC 偏移）已正确落地。",
+    "Pyright 对 psycopg **kwargs / fetchone 的静态告警为误报（运行期无碍），已忽略。"
+  ],
+  "verdict": "pass",
+  "confidence": 0.96
+}

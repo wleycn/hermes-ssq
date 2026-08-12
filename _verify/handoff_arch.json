@@ -1,0 +1,248 @@
+{
+  "handoff_type": "ARCHITECTURE",
+  "project": "SSQ 双色球预测数据层改造",
+  "system": "PostgreSQL 数据层（schema ssq）：开奖历史归档 + 模型预测输出 + 30天滚动清理",
+  "context": {
+    "role": "Software Architect",
+    "based_on": "handoff_pm.json (PRD, 2026-08-13)",
+    "authoritative_decisions": [
+      "D1: '保留最近30天'清理【仅作用于预测表 ssq.model_predictions】；开奖表 ssq.draw_history 全量保留、永不清理（2003至今3488期≈160KB，不炸库）。",
+      "D2: '30天'口径 = 滚动30个自然日：DELETE WHERE data_date < CURRENT_DATE - INTERVAL '30 days'（只保留最近30天内的预测批次），非'30个不同日期值'。",
+      "D3: data_date 列新增 = NOT NULL DEFAULT CURRENT_DATE；存量预测行用 run_at::date 回填，保证一致且不被误清。",
+      "D4: 开奖表命名为 ssq.draw_history（采用 PM 建议名）。",
+      "D5: 清理触发实现为 CLI 脚本，提供 --dry-run（仅计数不删）与 --confirm（执行删除）两种模式；先不做 cron。",
+      "D6: 开奖表只是 1.csv 的 PG 镜像归档，不改 ml.main.load_data() 的训练数据源（CSV 仍是训练源，PM G4）。"
+    ],
+    "resolved_pm_gaps": {
+      "G1": "已决(D1)：开奖表不裁剪，仅预测表裁剪。",
+      "G2": "已决(D2)：滚动30自然日口径。",
+      "G3": "已决(D3)：存量行 run_at::date 回填。",
+      "G4": "已决(D6)：draw_history 为镜像，CSV 仍为训练源。",
+      "G5": "已决(D5)：CLI 双模式，暂不做 cron。",
+      "G6": "已决(ADR-8)：dNum CHAR(7) 保留前导零；dDate DATE。"
+    },
+    "stack": {
+      "database": "PostgreSQL 127.0.0.1:5432 db=hermes schema=ssq",
+      "runtime": "Python 3 venv /home/hermes/workspace/python/SSQ/.venv",
+      "libs": [
+        "pandas",
+        "psycopg 3.3.4",
+        "pytest"
+      ],
+      "unchanged_code": [
+        "batch_predict_pg.py (仅改 INSERT)",
+        "ml/main.py (load_data 不改)",
+        "ml/data/dataset.py (load_data 不改)"
+      ]
+    }
+  },
+  "topology": "                         1.csv (3488 行, 训练源, CRLF)\n                            |  (D6: 只读, 不改 load_data)\n                            |  pandas.read_csv(DATA_FILE)\n                            v\n                   ml.main.load_data() ----> 训练 / 预测管线\n                                                       |\n                                                       | batch_predict_pg.main()\n                                                       v\n          +------------------------------------------=----------------------+\n          | ssq.model_predictions                                            |\n          |   +data_date DATE NOT NULL DEFAULT CURRENT_DATE   (D3 / R2)     |\n          |   idx: ix_model_predictions_data_date              (D2 清理键)  |\n          +------------------------------------------=----------------------+\n                                                       |\n                                            R3: 滚动 30 自然日清理\n                                            data_date < CURRENT_DATE - 30d\n                                                       v\n                                      cleanup CLI (--dry-run / --confirm)\n                                      仅作用于 model_predictions (D1)\n                                      开奖表不在清理范围\n\n   1.csv ---- import 脚本 (pandas+psycopg) ----> ssq.draw_history\n                                        (全量镜像, 11 列, PK dNum)  (D4 / R1)\n                                        idx: ix_draw_history_ddate\n                                        !!! 永不清理 (D1 例外, 全量归档) !!!\n",
+  "adrs": [
+    {
+      "id": "ADR-1",
+      "title": "清理范围限定于预测表",
+      "decision": "30天滚动清理仅作用于 ssq.model_predictions；ssq.draw_history 全量保留、永不清理。",
+      "rationale": "开奖历史是训练与回溯分析的根因数据（2003至今3488期，约160KB），裁剪会破坏训练集与历史对照。预测表是高频写入、膨胀快的批次数据，才需定期清理。",
+      "resolves": [
+        "G1",
+        "D1"
+      ]
+    },
+    {
+      "id": "ADR-2",
+      "title": "30天 = 滚动30个自然日",
+      "decision": "DELETE FROM ssq.model_predictions WHERE data_date < CURRENT_DATE - INTERVAL '30 days'。保留 data_date 落在最近30天内的批次。",
+      "rationale": "'30个不同日期值'口径会与'超过30天'表述冲突且在低频预测场景下语义模糊；滚动自然日口径与用户'超过30天'一致、实现简单、可索引。",
+      "resolves": [
+        "G2",
+        "D2"
+      ]
+    },
+    {
+      "id": "ADR-3",
+      "title": "data_date 列定义与存量回填",
+      "decision": "ADD COLUMN data_date DATE（先可空）-> UPDATE SET data_date = run_at::date WHERE data_date IS NULL（存量回填）-> SET DEFAULT CURRENT_DATE -> SET NOT NULL。",
+      "rationale": "若直接 NOT NULL DEFAULT CURRENT_DATE，存量行会被填成 ALTER 当天而非各自 run_at 日期，破坏按历史批次清理的语义；两阶段保证存量=run_at::date、新增=批次日期且非空。",
+      "resolves": [
+        "G3",
+        "D3",
+        "R3"
+      ]
+    },
+    {
+      "id": "ADR-4",
+      "title": "开奖表命名",
+      "decision": "新表命名为 ssq.draw_history（采用 PM 建议名）。",
+      "rationale": "与 R1 PM 建议一致，避免重命名迁移成本。",
+      "resolves": [
+        "D4",
+        "R1"
+      ]
+    },
+    {
+      "id": "ADR-5",
+      "title": "清理触发方式 = CLI 双模式",
+      "decision": "实现清理脚本，提供 --dry-run（SELECT COUNT(*) 预览、不删）与 --confirm（执行 DELETE）两种模式；默认不删，需显式 --confirm。暂不做 cron。",
+      "rationale": "DELETE 不可逆，必须人工确认；dry-run 先给可删计数再执行；cron 不在本期范围（用户未要求）。",
+      "resolves": [
+        "G5",
+        "D5",
+        "R3"
+      ]
+    },
+    {
+      "id": "ADR-6",
+      "title": "draw_history 是 1.csv 的 PG 镜像",
+      "decision": "draw_history 仅作 1.csv 的归档镜像；ml.main.load_data() 训练数据源保持读 CSV（DATA_FILE），不改。",
+      "rationale": "R1 仅要求建表+导入，未要求改训练读取来源；保持单一数据源（CSV）避免训练/预测双路径漂移。",
+      "resolves": [
+        "G4",
+        "D6"
+      ]
+    },
+    {
+      "id": "ADR-7",
+      "title": "data_date 写入策略（显式 run_at.date()）",
+      "decision": "batch_predict_pg.main() 的 INSERT 显式传入 data_date = run_at.date()（与批次 run_at 同日期）；DEFAULT CURRENT_DATE 仅作安全兜底。不依赖 DEFAULT 隐式填充。",
+      "rationale": "main() 中 run_at 在批次开始时取一次、本次所有 INSERT 共享；显式 run_at.date() 保证整批 data_date 一致，且跨午夜也不会把同一批拆成两个日期；与 ON CONFLICT(run_at,...) 分组键语义一致。DEFAULT 仅兜底未传值场景。",
+      "resolves": [
+        "R2",
+        "T4",
+        "D3"
+      ]
+    },
+    {
+      "id": "ADR-8",
+      "title": "列类型：dNum CHAR(7) / dDate DATE",
+      "decision": "draw_history.dNum CHAR(7)（保留前导零如 '2003001'），dDate DATE；Red*/Blue* 用 SMALLINT 加 CHECK 范围约束。",
+      "rationale": "期号为定长7位字符串语义，INT 会丢失前导零且未来位数不变；DATE 无时区但期号日期用服务器时区(应 Asia/Shanghai)即可。CHECK 防止脏数据。",
+      "resolves": [
+        "G6",
+        "T1",
+        "R1"
+      ]
+    }
+  ],
+  "domain_model": {
+    "tables": {
+      "ssq.draw_history": {
+        "purpose": "1.csv 全量镜像归档（开奖历史），永不清理",
+        "primary_key": "dNum",
+        "columns": {
+          "dNum": "CHAR(7) NOT NULL  -- 期号, 前导零语义 '2003001'",
+          "yNum": "SMALLINT NOT NULL -- 年",
+          "mNum": "SMALLINT NOT NULL -- 月",
+          "dDate": "DATE NOT NULL    -- 开奖日期",
+          "Red1": "SMALLINT NOT NULL CHECK(1..33)",
+          "Red2": "SMALLINT NOT NULL CHECK(1..33)",
+          "Red3": "SMALLINT NOT NULL CHECK(1..33)",
+          "Red4": "SMALLINT NOT NULL CHECK(1..33)",
+          "Red5": "SMALLINT NOT NULL CHECK(1..33)",
+          "Red6": "SMALLINT NOT NULL CHECK(1..33)",
+          "Blue1": "SMALLINT NOT NULL CHECK(1..16)"
+        },
+        "indexes": [
+          "ix_draw_history_ddate ON ssq.draw_history(dDate)"
+        ]
+      },
+      "ssq.model_predictions": {
+        "purpose": "各模型红/蓝球预测概率，高频写入，按 data_date 滚动30天清理",
+        "primary_key": "id",
+        "unique": [
+          "(run_at, model, ball_type, num)"
+        ],
+        "columns": {
+          "id": "BIGSERIAL PRIMARY KEY",
+          "run_at": "TIMESTAMP NOT NULL DEFAULT now()",
+          "model": "TEXT NOT NULL",
+          "ball_type": "TEXT NOT NULL  -- 'red' | 'blue'",
+          "num": "INT NOT NULL      -- 1..33 / 1..16",
+          "prob": "DOUBLE PRECISION NOT NULL",
+          "data_date": "DATE NOT NULL DEFAULT CURRENT_DATE  -- ADR-3 新增"
+        },
+        "indexes": [
+          "ix_model_predictions_data_date ON ssq.model_predictions(data_date)"
+        ]
+      }
+    }
+  },
+  "schema_ddl": {
+    "draw_history_create": "CREATE SCHEMA IF NOT EXISTS ssq;\nCREATE TABLE IF NOT EXISTS ssq.draw_history (\n    dNum   CHAR(7)    NOT NULL,\n    yNum   SMALLINT   NOT NULL,\n    mNum   SMALLINT   NOT NULL,\n    dDate  DATE       NOT NULL,\n    Red1   SMALLINT   NOT NULL CHECK (Red1 BETWEEN 1 AND 33),\n    Red2   SMALLINT   NOT NULL CHECK (Red2 BETWEEN 1 AND 33),\n    Red3   SMALLINT   NOT NULL CHECK (Red3 BETWEEN 1 AND 33),\n    Red4   SMALLINT   NOT NULL CHECK (Red4 BETWEEN 1 AND 33),\n    Red5   SMALLINT   NOT NULL CHECK (Red5 BETWEEN 1 AND 33),\n    Red6   SMALLINT   NOT NULL CHECK (Red6 BETWEEN 1 AND 33),\n    Blue1  SMALLINT   NOT NULL CHECK (Blue1 BETWEEN 1 AND 16),\n    PRIMARY KEY (dNum)\n);\nCREATE INDEX IF NOT EXISTS ix_draw_history_ddate ON ssq.draw_history (dDate);",
+    "model_predictions_alter": "DO $$\nBEGIN\n    IF NOT EXISTS (\n        SELECT 1 FROM information_schema.columns\n        WHERE table_schema='ssq' AND table_name='model_predictions' AND column_name='data_date'\n    ) THEN\n        ALTER TABLE ssq.model_predictions ADD COLUMN data_date DATE;\n        UPDATE ssq.model_predictions SET data_date = run_at::date WHERE data_date IS NULL;\n        ALTER TABLE ssq.model_predictions ALTER COLUMN data_date SET DEFAULT CURRENT_DATE;\n        ALTER TABLE ssq.model_predictions ALTER COLUMN data_date SET NOT NULL;\n    END IF;\nEND $$;\nCREATE INDEX IF NOT EXISTS ix_model_predictions_data_date ON ssq.model_predictions (data_date);",
+    "import_csv_note": "pandas 读 1.csv（CRLF 兼容），按列映射 dNum/yNum/mNum/dDate/Red1..6/Blue1 批量 COPY/executemany；行数校验=3488（不含表头）；首行 2003001/2003-02-23、末行 2026092/2026-08-11 抽样校验。"
+  },
+  "cleanup_design": {
+    "scope": "仅 ssq.model_predictions（ADR-1）",
+    "predicate": "data_date < CURRENT_DATE - INTERVAL '30 days'",
+    "dry_run_sql": "SELECT COUNT(*) AS will_delete\nFROM ssq.model_predictions\nWHERE data_date < CURRENT_DATE - INTERVAL '30 days';",
+    "confirm_sql": "DELETE FROM ssq.model_predictions\nWHERE data_date < CURRENT_DATE - INTERVAL '30 days';",
+    "cli_contract": {
+      "script": "cleanup_predictions.py (建议置于 SSQ 根)",
+      "modes": [
+        "默认 / --dry-run：执行 dry_run_sql，打印 will_delete 计数，不删（安全默认）",
+        "--confirm：先打印 will_delete 计数，再执行 confirm_sql，返回被删行数"
+      ],
+      "guards": [
+        "默认不删，必须显式 --confirm",
+        "开奖表 ssq.draw_history 明确不在脚本内，杜绝误清历史",
+        "可重复执行（幂等）：每次仅删除已超期行",
+        "建议在事务内执行并日志审计批次时间/删除数"
+      ]
+    },
+    "keep_recent_30d_signature": "keep_recent_30d(conn, dry_run: bool = True) -> int  # 返回将删/已删行数"
+  },
+  "write_logic_change": {
+    "file": "batch_predict_pg.py",
+    "function": "main()",
+    "change": "两处 INSERT 增加 data_date 列，值为 run_at.date()（ADR-7）；ON CONFLICT(run_at,model,ball_type,num) 不变。",
+    "before": "INSERT INTO ssq.model_predictions(run_at,model,ball_type,num,prob) VALUES (%s,%s,'red',%s,%s) ...",
+    "after": "INSERT INTO ssq.model_predictions(run_at,model,ball_type,num,prob,data_date) VALUES (%s,%s,'red',%s,%s,%s) ...  -- 末参 run_at.date()",
+    "test_impact": "T4/T6: 原 21 个 pytest 用例需仍通过；新增断言 data_date 非空且 == run_at.date()。"
+  },
+  "risks": [
+    {
+      "id": "RISK-1",
+      "severity": "HIGH",
+      "title": "清理不可逆误执行",
+      "mitigation": "默认 dry-run；--confirm 才删；CLI 仅含预测表、硬编码排除 draw_history；执行前日志审计。"
+    },
+    {
+      "id": "RISK-2",
+      "severity": "MEDIUM",
+      "title": "跨午夜批次 data_date 漂移",
+      "mitigation": "ADR-7 显式传 run_at.date()，全批共享 run_at 日期，不受 DEFAULT/CURRENT_DATE 跨天影响。"
+    },
+    {
+      "id": "RISK-3",
+      "severity": "MEDIUM",
+      "title": "draw_history 与 1.csv 漂移",
+      "mitigation": "import 脚本在 1.csv 经 append_ssq/update_ssq 更新后需重跑；可在更新流程末尾挂载重导入（本期手动）。"
+    },
+    {
+      "id": "RISK-4",
+      "severity": "MEDIUM",
+      "title": "CURRENT_DATE 时区偏差",
+      "mitigation": "data_date/dDate 为 DATE 无时区；须确保 PG 会话/服务器时区为 Asia/Shanghai，使'今天'与开奖日期一致（见 open_questions OQ-1）。"
+    },
+    {
+      "id": "RISK-5",
+      "severity": "LOW",
+      "title": "存量行 UPDATE 锁表",
+      "mitigation": "model_predictions 体量小（日增约模型数×49 行），UPDATE 全表代价可忽略；ALTER 加 NOT NULL 亦快。"
+    },
+    {
+      "id": "RISK-6",
+      "severity": "LOW",
+      "title": "CHAR(7) 兼容性",
+      "mitigation": "期号恒为7位定长（2003001..2026092..），CHAR(7) 无截断风险；若未来位数变化需评估。"
+    }
+  ],
+  "confidence": 0.92,
+  "open_questions": [
+    "OQ-1: PG 服务器/会话时区是否确认为 Asia/Shanghai？影响 CURRENT_DATE 与开奖日期的'今天'对齐（RISK-4）。",
+    "OQ-2: 1.csv 经 append_ssq.py / update_ssq.py 更新后，draw_history 重导入是否要挂到同一流程（本期手动还是自动化）？",
+    "OQ-3: 是否在 Red*/Blue* 上加 CHECK 约束（ADR-8 已默认加）；如需更严可在 dNum 上校验格式。",
+    "OQ-4: 后续若需 cron 自动清理，是否直接包裹现有 cleanup_predictions.py（建议保留 CLI 双模式不变）。",
+    "OQ-5: select_numbers.load_latest_probs 当前按 run_at 取最新批次；data_date 引入后是否要改为按 data_date 取最新（功能不变，仅索引优化点）。"
+  ]
+}

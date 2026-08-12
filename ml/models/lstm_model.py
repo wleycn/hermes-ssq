@@ -27,7 +27,7 @@ def _train_loop(model, train_loader, val_loader, criterion, optimizer, epochs, d
     early_stop, lr_factor, lr_patience = config.get("early_stop_patience", 7), config.get("lr_scheduler_factor", 0.5), config.get("lr_scheduler_patience", 3)
     val_freq, best_val_loss, patience_counter = config.get("val_frequency", 10), float("inf"), 0
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=lr_factor, patience=lr_patience)
-
+    t_start = time.time()
     for epoch in range(epochs):
         total_loss = 0.0
         for inputs, targets in train_loader:
@@ -44,8 +44,13 @@ def _train_loop(model, train_loader, val_loader, criterion, optimizer, epochs, d
             if val_loss < best_val_loss: best_val_loss, patience_counter = val_loss, 0
             else:
                 patience_counter += 1
-                if patience_counter >= early_stop: break
+                if patience_counter >= early_stop:
+                    print(f"    [early-stop] epoch {epoch+1}, best_val_loss={best_val_loss:.4f}")
+                    break
             model.train()
+            print(f"    [epoch {epoch+1}/{epochs}] train_loss={total_loss/len(train_loader.dataset):.4f} val_loss={val_loss:.4f} ({time.time()-t_start:.0f}s)")
+        elif (epoch + 1) % 10 == 0:
+            print(f"    [epoch {epoch+1}/{epochs}] train_loss={total_loss/len(train_loader.dataset):.4f} ({time.time()-t_start:.0f}s)")
     return {"best_val_loss": best_val_loss, "epochs_trained": epoch + 1}
 
 # ================= 网络结构 =================
@@ -184,7 +189,7 @@ class LSTMAllModel(_BaseLSTM):
         return proba[..., :33], proba[..., 33:]
 
     def prepare_data(self, df, feature_cols, red_cols=None, blue_col="Blue1", window_size=None):
-        ws, red_cols = window_size or self.config.get("window_size", 330), red_cols or RED_COLS
+        ws, red_cols = window_size or self.config.get("window_size", 128), red_cols or RED_COLS
         self.feature_cols = feature_cols
         X_data = df[feature_cols].values
         X = np.zeros((len(df) - ws, ws, len(feature_cols)), dtype=np.float32)

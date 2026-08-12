@@ -1,0 +1,125 @@
+{
+  "handoff_type": "PRD",
+  "project": "SSQ 双色球预测数据层改造",
+  "summary": "将双色球历史开奖数据 1.csv 导入 PostgreSQL 新表；为模型预测输出表 ssq.model_predictions 增加 data_date(DATE) 列并在每次预测时写入当天日期；对开奖表与预测表仅保留最近 30 个日期的记录、清理超期旧数据。需求 3 为不可逆 DELETE 操作，必须人工确认后再实施。PM 不执行任何代码，仅交付本文档。",
+  "requirements": [
+    {
+      "id": "R1",
+      "title": "导入 1.csv 到 PostgreSQL 新表",
+      "source": "用户原话需求 1",
+      "description": "在已存在的 schema ssq 下新建一张表（建议命名 ssq.draw_history，命名待确认），将 /home/hermes/workspace/python/SSQ/ml/data/1.csv 的 3488 行数据（3489 行含表头）全量导入。表头 11 列：dNum(期号), yNum(年), mNum(月), dDate(开奖日期), Red1..Red6(红球), Blue1(蓝球)。文件为 CRLF 行尾，需兼容。最新一期为 2026092 / 2026-08-11，最早 2003001 / 2003-02-23。"
+    },
+    {
+      "id": "R2",
+      "title": "为 ssq.model_predictions 增加 data_date 列并写入",
+      "source": "用户原话需求 2",
+      "description": "给现有表 ssq.model_predictions 增加一列 data_date，类型 DATE，格式 YYYY-MM-DD。每次运行 batch_predict_pg.py 预测时，将该次预测的当天日期写入该列。现有表结构：id BIGSERIAL PK, run_at TIMESTAMP DEFAULT now(), model TEXT, ball_type TEXT('red'|'blue'), num INT, prob DOUBLE PRECISION, UNIQUE(run_at, model, ball_type, num)。当前代码 INSERT 未含 data_date，需修改 batch_predict_pg.py 的写入逻辑（建议取 run_at.date() 或 CURRENT_DATE）。"
+    },
+    {
+      "id": "R3",
+      "title": "仅保留最近 30 个日期记录，清理超期旧数据",
+      "source": "用户原话需求 3",
+      "description": "无论开奖数据表还是预测表，仅保留最近 30 个日期的记录，超过 30 天的旧记录要清理，避免以后炸库。这是 DELETE 型不可逆操作，适用范围明确包含两张表。清理的触发方式（cron 定时自动 vs 手动 CLI）及 '30 个日期' 的精确口径（最近 30 个不同日期值，还是滚动 30 个自然日）需用户确认，PM 不代决。",
+      "is_irreversible": true,
+      "human_confirmation_required": true
+    }
+  ],
+  "gaps": [
+    {
+      "id": "G1",
+      "severity": "CRITICAL",
+      "title": "需求 3 应用于开奖表将销毁历史数据",
+      "detail": "ssq.draw_history 导入后含 2003 至今约 3488 行历史开奖。若按字面 '仅保留最近 30 个日期' 裁剪开奖表，将删除其中约 3450 行（仅保留 2026-08 前后约 30 个日期），等同于清空训练用的历史数据集。需明确：开奖表是否也执行裁剪，还是仅预测表裁剪、开奖表作为全量归档保留。属不可逆操作，必须用户书面确认。"
+    },
+    {
+      "id": "G2",
+      "severity": "HIGH",
+      "title": "'30 个日期' 语义不清",
+      "detail": "用户混用 '最近 30 个日期' 与 '超过 30 天'。需确认口径：(a) 保留最近 30 个不同日期值（distinct date 数），还是 (b) 滚动 30 个自然日（date < today-30 即删）。两表应统一口径：draw_history 按 dDate，model_predictions 按 data_date。"
+    },
+    {
+      "id": "G3",
+      "severity": "MEDIUM",
+      "title": "data_date 历史存量行回填策略未定",
+      "detail": "ssq.model_predictions 已有存量行只有 run_at(TIMESTAMP)。新增 data_date 列后，存量行应 NULL 留空，还是由 run_at::date 回填以保持一致？若后续 R3 按 data_date 裁剪，NULL 行需单独处理。"
+    },
+    {
+      "id": "G4",
+      "severity": "MEDIUM",
+      "title": "新开奖表与训练管线的数据源关系",
+      "detail": "现有训练通过 ml.main.load_data()（推测读 CSV）加载数据。R1 仅要求建表+导入，未要求改动训练读取来源。需确认：新表是否替代 CSV 作为训练源，还是仅作镜像归档。本 PRD 不擅自扩展该范围。"
+    },
+    {
+      "id": "G5",
+      "severity": "MEDIUM",
+      "title": "清理自动化方式未定",
+      "detail": "cron 定时自动清理，还是手动 CLI 触发，PM 不代决，需用户指定。建议实现至少提供 dry-run 预览 + 显式 --confirm 才执行删除。"
+    },
+    {
+      "id": "G6",
+      "severity": "LOW",
+      "title": "列类型与解析细节",
+      "detail": "dNum 期号建议 CHAR(7)/TEXT 或 INT（无前导零语义风险）；dDate 解析时区（DATE 无时区，但 run_at 为 TIMESTAMP，取 .date() 即可）。需在 DDL 设计阶段定稿。"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "设计 ssq.draw_history 建表 DDL",
+      "estimate_min": 20,
+      "acceptance": "DDL 含全部 11 列且类型与表头语义一致：dNum(建议 CHAR(7)/TEXT 或 INT)、yNum SMALLINT、mNum SMALLINT、dDate DATE、Red1-6 SMALLINT(1-33)、Blue1 SMALLINT(1-16)；建议以 dNum 为主键或唯一键。DDL 幂等可重复执行。命名经评审确认。",
+      "deps": []
+    },
+    {
+      "id": "T2",
+      "title": "编写并执行 1.csv 导入脚本（pandas + psycopg）",
+      "estimate_min": 45,
+      "acceptance": "3488 行数据全部入库（行数校验 = 总数据行，表头不计）；兼容 CRLF；抽样校验首行 2003001/2003-02-23 与末行 2026092/2026-08-11 正确；无编码或截断错误；列类型与 T1 一致。注：本任务由实施者执行，PM 不代跑代码。",
+      "deps": ["T1"]
+    },
+    {
+      "id": "T3",
+      "title": "ALTER TABLE 为 model_predictions 增加 data_date 列",
+      "estimate_min": 15,
+      "acceptance": "ssq.model_predictions 新增 data_date DATE；按 G3 决策决定是否加 DEFAULT CURRENT_DATE 及存量行回填方案；DDL 幂等。",
+      "deps": []
+    },
+    {
+      "id": "T4",
+      "title": "修改 batch_predict_pg.py 写入 data_date",
+      "estimate_min": 20,
+      "acceptance": "main() 中 INSERT 携带 data_date（取值 run_at.date() 或 CURRENT_DATE）；原有 21 个 pytest 用例通过，并新增断言该列对非历史行非空。",
+      "deps": ["T3"]
+    },
+    {
+      "id": "T5",
+      "title": "编写两表保留/清理程序（DELETE > 30）",
+      "estimate_min": 60,
+      "acceptance": "提供 dry-run（仅 SELECT 计数、不删）与 --confirm（执行删除）两种模式；作用于 draw_history（按 dDate）与 model_predictions（按 data_date）；默认不执行删除，需显式确认；文档标注不可逆。⚠ 实际执行删除前必须待 G1/G2 人工确认。",
+      "deps": ["T1", "T3"]
+    },
+    {
+      "id": "T6",
+      "title": "补充/扩展 pytest 覆盖新功能",
+      "estimate_min": 30,
+      "acceptance": "新增用例覆盖：data_date 非空写入、CSV 导入行数正确、清理 dry-run 计数准确；全量测试通过（原 21 + 新增）。",
+      "deps": ["T2", "T4", "T5"]
+    }
+  ],
+  "stack": {
+    "database": "PostgreSQL (127.0.0.1:5432, db=hermes, schema=ssq)",
+    "language_runtime": "Python 3 (项目 venv: /home/hermes/workspace/python/SSQ/.venv)",
+    "libraries": ["pandas", "numpy", "psycopg 3.3.4", "pytest"],
+    "existing_code": ["batch_predict_pg.py (ensure_schema / run_one / main)", "ml/main.py (load_data 等)"],
+    "tests": "_verify/ (pytest, 21 passed baseline)"
+  },
+  "confidence": 0.8,
+  "open_questions": [
+    "【需人工确认·不可逆】R3 是否真要对开奖表 ssq.draw_history 执行裁剪？若执行将删除约 3450 行 2003–2026 历史数据。还是仅裁剪预测表、开奖表作为全量归档保留？(对应 G1)",
+    "【需人工确认】'最近 30 个日期' 的精确口径：最近 30 个不同日期值，还是滚动 30 个自然日（date < today-30）？(对应 G2)",
+    "data_date 存量历史行如何处置：NULL 留空，还是由 run_at 回填？(对应 G3)",
+    "清理触发方式：cron 定时自动，还是手动 CLI？(对应 G5)",
+    "新开奖表是否替代 ml.main.load_data() 的 CSV 训练数据源，还是仅作镜像？(对应 G4)",
+    "dNum 列类型最终选择（CHAR(7)/TEXT/INT）与 dDate 解析时区约定？(对应 G6)"
+  ]
+}

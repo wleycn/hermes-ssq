@@ -1,0 +1,120 @@
+{
+  "handoff_type": "CODE",
+  "role": "SeniorDeveloper",
+  "feature": "SSQ 数据层改造：PG 开奖表导入 + model_predictions.data_date 列 + 30天清理 CLI",
+  "based_on": ["handoff_pm.json", "handoff_arch.json"],
+  "decisions_honored": [
+    "D1: 清理仅作用于 model_predictions，draw_history 全量保留（cleanup_predictions.py 硬编码排除 draw_history）",
+    "D2: 30天 = 滚动30自然日，cutoff=Python datetime.now().date()-30（北京日期）",
+    "D3: data_date NOT NULL；存量行回填北京日期",
+    "D4: 开奖表名 ssq.draw_history",
+    "D5: CLI 双模式 --dry-run(默认)/--confirm",
+    "D6: draw_history 只是 1.csv 镜像，不改 load_data()（未触碰 ml/main.py / dataset.py）",
+    "实测修正#7: 不用 PG CURRENT_DATE（Etc/UTC 比北京晚8h）；data_date 由 Python datetime.now() 生成，INSERT 显式传 run_at.date()"
+  ],
+  "files_changed": [
+    {
+      "path": "/home/hermes/workspace/python/SSQ/pg_schema.py",
+      "action": "created",
+      "purpose": "T1/T2/T3 落地：ensure_draw_history_schema()、import_draw_history()、ensure_model_predictions_data_date()。另含 get_conn() 与 __main__ 自检。"
+    },
+    {
+      "path": "/home/hermes/workspace/python/SSQ/cleanup_predictions.py",
+      "action": "created",
+      "purpose": "T5 落地：keep_recent_30d(conn, dry_run=True) -> int；CLI 默认 --dry-run，--confirm 才删；仅动 model_predictions，cutoff 在 Python 侧算。"
+    },
+    {
+      "path": "/home/hermes/workspace/python/SSQ/batch_predict_pg.py",
+      "action": "modified",
+      "purpose": "T4 落地：main() 两处 INSERT 增加 data_date 列（值 run_at.date() 北京日期）；ensure_schema() 内调用 ensure_model_predictions_data_date 保证列存在。"
+    },
+    {
+      "path": "/home/hermes/workspace/python/SSQ/_verify/test_data_layer.py",
+      "action": "created",
+      "purpose": "T6 落地：6 个新用例覆盖 (a)导入行数3488+首末行, (b)data_date 非空+==run_at.date()+生产行北京日期, (c)cleanup dry-run=0 且不删任何行/不碰 draw_history。"
+    }
+  ],
+  "implementation": {
+    "T1_draw_history_schema": "CREATE SCHEMA IF NOT EXISTS ssq; CREATE TABLE IF NOT EXISTS ssq.draw_history (dNum CHAR(7) PK, yNum/mNum SMALLINT, dDate DATE, Red1..6 SMALLINT CHECK 1..33, Blue1 SMALLINT CHECK 1..16); CREATE INDEX IF NOT EXISTS ix_draw_history_ddate(dDate)。幂等。",
+    "T2_import": "pandas.read_csv(encoding='utf-8-sig') 兼容 BOM/CRLF；dNum 格式化 f'{int(x):07d}' 保留前导零；dDate 转 date；DELETE 旧数据后 executemany 批量插入；返回行数(校验=3488)。",
+    "T3_data_date": "DO $$ 块两阶段：IF 列不存在 THEN ADD COLUMN data_date DATE; UPDATE SET data_date=run_at::date WHERE NULL(存量回填北京日期); SET DEFAULT CURRENT_DATE; SET NOT NULL; END IF; CREATE INDEX ix_model_predictions_data_date。幂等。",
+    "T4_insert": "main() 每批取 data_date=run_at.date()（北京日期，run_at=datetime.now()），两处 INSERT 显式传 data_date，不依赖 DEFAULT。ON CONFLICT 分组键不变。",
+    "T5_cleanup": "keep_recent_30d(conn, dry_run): cutoff=datetime.now().date()-timedelta(30)；dry_run 仅 SELECT COUNT 打印 will_delete；--confirm 先打印再 DELETE WHERE data_date<%s。硬编码只动 model_predictions，绝不碰 draw_history。"
+  },
+  "verification": [
+    {
+      "step": "T1+T2+T3 实跑 (python pg_schema.py)",
+      "command": "cd /home/hermes/workspace/python/SSQ && .venv/bin/python pg_schema.py",
+      "output": "[import] draw_history rows = 3488 (expect 3488)\n[check] draw_history count = 3488\n[check] model_predictions data_date NULL = 0",
+      "result": "PASS"
+    },
+    {
+      "step": "draw_history 首末行 + 列类型校验",
+      "command": "SELECT first/last dNum,dDate, COUNT(DISTINCT dNum), column def, indexes",
+      "output": "first=('2003001', 2003-02-23); last=('2026092', 2026-08-11); distinct dNum=3488; col data_date(date,NO,default CURRENT_DATE); indexes=draw_history_pkey, ix_draw_history_ddate, ix_model_predictions_data_date",
+      "result": "PASS"
+    },
+    {
+      "step": "data_date 北京日期校验（修正后）",
+      "command": "SELECT data_date, COUNT(*) FROM ssq.model_predictions GROUP BY 1;",
+      "output": "[(datetime.date(2026, 8, 13), 245)]  -- 全部为北京日期，无 NULL，无 UTC 偏差",
+      "result": "PASS"
+    },
+    {
+      "step": "T5 cleanup --dry-run 实跑（无删）",
+      "command": "cd /home/hermes/workspace/python/SSQ && .venv/bin/python cleanup_predictions.py",
+      "output": "[dry-run] cutoff=2026-07-14  will_delete=0  （未执行删除，draw_history 不受影响）",
+      "result": "PASS"
+    },
+    {
+      "step": "dry-run 后行数不变（验证未删）",
+      "command": "SELECT COUNT(*) FROM model_predictions / draw_history 前后对比",
+      "output": "model_predictions=245 (不变); draw_history=3488 (不变)",
+      "result": "PASS"
+    },
+    {
+      "step": "pytest 全量",
+      "command": "cd /home/hermes/workspace/python/SSQ && .venv/bin/python -m pytest _verify/ -q",
+      "output": "27 passed (test_batch_predict_pg 5, test_data_layer 6, test_lstm_speed_config 3, test_partial_models 4, test_pg_integration 1, test_select_and_mail 4, test_ssq_update 4)",
+      "result": "PASS"
+    }
+  ],
+  "tests": [
+    {"file": "_verify/test_data_layer.py", "name": "test_import_draw_history_count", "desc": "导入返回行数=3488 且 DB 中=3488"},
+    {"file": "_verify/test_data_layer.py", "name": "test_import_draw_history_edges", "desc": "首行 2003001/2003-02-23，末行 2026092/2026-08-11"},
+    {"file": "_verify/test_data_layer.py", "name": "test_data_date_non_null", "desc": "model_predictions.data_date 无 NULL"},
+    {"file": "_verify/test_data_layer.py", "name": "test_insert_explicit_data_date_matches_run_at", "desc": "显式 INSERT data_date=run_at.date()，落库值与 run_at.date() 相等"},
+    {"file": "_verify/test_data_layer.py", "name": "test_existing_production_rows_data_date_is_beijing", "desc": "真实跑批 245 行 data_date 均与 run_at::date（北京）一致"},
+    {"file": "_verify/test_data_layer.py", "name": "test_cleanup_dry_run_zero_and_noop", "desc": "cleanup dry-run will_delete=0，且 dry-run 后 model_predictions/draw_history 行数不变"}
+  ],
+  "deviations": [
+    {
+      "id": "DEV-1",
+      "severity": "CRITICAL-FIX",
+      "title": "修正任务给定的回填表达式错误",
+      "detail": "任务#7 建议的存量回填 SQL `(run_at AT TIME ZONE 'Asia/Shanghai')::date` 在 PG 会话时区=Etc/UTC 下会得到 UTC 日期（2026-08-12），而非北京日期。实测：run_at 存为无时区时间戳=北京墙钟(2026-08-13 00:01:57)，该表达式 ::date 按会话 UTC 结算=2026-08-12（晚8h）。已改为 `run_at::date`（=北京日期 2026-08-13）。已对存量 245 行实跑 UPDATE 修正。",
+      "action_taken": "pg_schema.ensure_model_predictions_data_date 中 UPDATE 改用 run_at::date；并对现有 245 行执行一次性 UPDATE 修复（由 2026-08-12 修正为 2026-08-13）。"
+    },
+    {
+      "id": "DEV-2",
+      "severity": "MINOR",
+      "title": "ensure_schema 额外调用 ensure_model_predictions_data_date",
+      "detail": "为让 batch_predict_pg.main() 的 INSERT 在全新环境也能工作，在 ensure_schema() 内调用 ensure_model_predictions_data_date(conn)（幂等，仅首次加列）。超出‘仅改 INSERT’字面要求，但是必要且安全的健壮性增强。",
+      "action_taken": "已加入，保持幂等。"
+    },
+    {
+      "id": "DEV-3",
+      "severity": "INFO",
+      "title": "DEFAULT CURRENT_DATE 保留为兜底",
+      "detail": "列定义保留 DEFAULT CURRENT_DATE（ADR-3 安全兜底），但所有业务 INSERT 均显式传 run_at.date()，不依赖 DEFAULT，规避 UTC 偏差。",
+      "action_taken": "符合 ADR-3/ADR-7，无改动。"
+    }
+  ],
+  "unfinished": [],
+  "notes": [
+    "cron 自动清理按 D5 本期不做，仅提供 CLI；如后续需要可直接包裹 cleanup_predictions.py。",
+    "draw_history 与 1.csv 漂移风险（RISK-3）：1.csv 经 append_ssq/update_ssq 更新后需重跑 import_draw_history（本次手动；函数幂等可重复执行）。",
+    "Pyright 对 psycopg **kwargs 与 importlib spec 的静态告警为误报，运行期 pytest 27 passed 已证无碍。"
+  ],
+  "confidence": 0.95
+}

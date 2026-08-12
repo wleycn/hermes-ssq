@@ -102,7 +102,7 @@ LGB_CONFIG = {
 LSTM_CONFIG = {
     "window_size": 128,
     "batch_size": 128,
-    "epochs": 256,
+    "epochs": 80,
     "learning_rate": 0.001,
     "hidden_size": 32,
     "num_layers": 2,
