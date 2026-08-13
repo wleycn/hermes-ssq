@@ -1,0 +1,523 @@
+{
+ "handoff_type": "ARCHITECTURE",
+ "system": "SSQ 双色球「红球频谱/结构随机性检验器」（随机性检验探针，非预测器；蓝球检验器的红球泛化）",
+ "context": "项目 /home/hermes/workspace/python/SSQ，Python 3.14，venv .venv/bin/python（numpy 2.5.2 / scipy 1.18.0 / pandas 齐备；statsmodels 未安装，勿依赖）。数据 ml/data/1.csv 共 3488 期（2003 至今），红球列 RED_COLS=['Red1'..'Red6']，取值 1..33，load_data() 自 evaluate 导入（红球行是无序集合语义，真实数据含 1 行未严格升序 [12,15,5,23,6,25]，必须按集合校验而非假定有序）。任务定位延续蓝球：检验器不是预测器——把「摇奖机公平」与「连号偏热」类彩民直觉变成有/无统计证据的结论。红球每期 6 个号是无序集合，与蓝球单变量序列本质不同，故按已定稿方案拆三条互补路径：路径1 33 条指示序列（时间维度，每号出现期次期望 634.2）；路径2 33×33 同现/互斥矩阵（横截面，空间维度）；路径3 派生标量（和值/跨度/奇偶比，复用蓝球单变量路径）。本架构所有统计关键路径均已用项目 venv 实测验证（见各规格「实测锚点」）：合并 33 格卡方 p=0.0677 复现、同现矩阵性质（对称/对角 0/总和 30N=104,640）、连号 3118 vs 期望 3170.9 精确方差 z=-1.110（PM 的 -0.87 系独立性近似方差，方向结论一致，本架构采用精确矩）、同尾 1.097 vs 1.108、重号率 1.0826 vs 1.0909（z=-0.566，MC 校准 sd=1.07）、BH-FDR 自实现（全 null 下 P(任一检出)≈α 为正确性质，注入 10 真信号 100% 检出，真实数据 528 对双向 0 检出）、和值 33C6 精确卷积 DP（9.1ms、总和=C(33,6)、均值 102 方差 459）、组合误报率 6/100≈6%（命中 5%±2% 目标）。真实数据实测结果：路径1 FLAT（合并卡方 p=0.0677 边界、重号率 z=-0.566、逐号谱峰 0/33 显著）；路径2 无显著（528 对 BH-FDR 双向 0 检出；子类临界 3.254：连号 z=-1.110、同尾 z=-0.711、区间1 +1.508、区间2 +0.917、区间3[23..33] z=-3.006 为最接近阈值条目）；路径3 SCALAR_BIAS（和值均值 100.961 vs null 102，z=-2.865 p=0.0042，全年代弥散非单一时期驱动）。顶层 verdict=SCALAR_BIAS——这不是失败，正是检验器价值的证明：把「大号区间略冷」这类弥散信号变成带多重比较控制的统计结论，且明确标注无实践意义。",
+ "topology": "数据流：ml/data/1.csv → load_data() → df[RED_COLS].to_numpy(dtype=int)（(N,6)，集合语义）→ _validate_reds → ml/spectral_red.run_red_spectral_test() → RedSpectralResult → red_spectral_report_dict() → evaluate.py 的 write_report（.json/.md 双格式，kind='spectral_red_probe' 分派 render_md_spectral_red）。\n模块拓扑：ml/spectral_red.py 为纯统计域（只依赖 numpy/scipy/math/itertools/dataclasses + from ml import spectral 复用，无 pandas、无数据 IO、无 evaluate 依赖，可独立单测）；evaluate.py 为评测/报告域（数据加载、CLI、MD 渲染，新增 --spectral-red 分支与蓝球 --spectral 并列互斥）；tests/test_spectral_red.py 为验证域。依赖方向：evaluate.py → ml/spectral_red.py → ml/spectral.py → (numpy, scipy, stdlib)，无反向依赖；ml/spectral.py 公开接口零改动（本架构复用其 chi2_uniform_test/fisher_g_test，红球传参 n=33 / complex_signal=False 即可）。\n三路径并行 fan-out（路径1/2/3 互不依赖，可在 run_red_spectral_test 内顺序执行，合计 ~0.34s/全量）；顶层合成器只做判定与结论合成。新建 3 文件（ml/spectral_red.py、tests/test_spectral_red.py、docs/arch_spectral_red.json，LF 行尾），修改 2 文件（evaluate.py LF 957 行可 patch；tests/test_code_quality.py TARGETS 追加 ml/spectral_red.py 一行）。禁止触碰：ml/spectral.py 公开接口、ml/config.py（只读 RED_COLS）、ml/eval/walk_forward.py（零改动）、ml/features/feature_engineer.py（CRLF 勿 patch）、ml/data/*、wheel.py、select_numbers.py、ml/popularity.py、ml/decode.py、ml/models/*。",
+ "modules": {
+  "ml/spectral_red.py": {
+   "定位": "红球三路径随机性检验纯函数库。无状态、无 IO、纯 numpy 计算；只依赖 numpy/scipy/math/itertools/dataclasses/typing + from ml import spectral（复用其公开函数，参数化传参，零改动）。文件行尾 LF，新建文件对 tests/test_code_quality.py 零豁免（调用链≤3 层 + Google docstring；test_code_quality.py 的 TARGETS 需追加本文件）。",
+   "顶部常量": {
+    "RED_N": 33,
+    "RED_K": 6,
+    "MIN_N": 500,
+    "TOTAL_PAIRS": 528,
+    "PAIR_P": "15/528（单对单期出现概率 = C(6,2)/C(33,2)）",
+    "ALPHA_PATH(alpha)": "1-(1-alpha)^(1/3)（Sidak 三路拆分，alpha=0.05 → 0.01695）",
+    "ALPHA_COMP(alpha)": "1-(1-ALPHA_PATH)^(1/3)（路径内三组件 Sidak，→ 0.00568）",
+    "REPEAT_MU": "36/33=1.090909（单期重号数期望，超几何）",
+    "REPEAT_VAR": "6*6*27*27/(33^2*32)=0.753099（单期重号数方差，超几何闭式）",
+    "SUB_P3": "C(30,3)/C(33,6)=0.00366572（子类两对共享 1 号时同现概率）",
+    "SUB_P4": "C(29,2)/C(33,6)=0.00036656（子类两对不相交时同现概率）",
+    "SUBCLASS_TABLE": "预计算常量表：连号(n=32, shared=62, disjoint=930)；同尾(n=39, shared=114, disjoint=1368)；区间1/2/3(n=55, shared=990, disjoint=1980)×3——shared/disjoint 为有序对计数，公式见 subclass_stats"
+   },
+   "函数规格": [
+    {
+     "name": "red_indicator_matrix(reds: np.ndarray) -> np.ndarray",
+     "算法": "输入 (N,6) int 数组（已校验）。返回 (RED_N, N) bool 矩阵，行 i 为号码 i+1 的出现指示序列（该期是否开出）。",
+     "边界": "不自行校验（由 _validate_reds 负责）；形状 (N,6) 非 2 维抛 ValueError。",
+     "实测锚点": "真实数据 3488 期：矩阵形状 (33,3488)，行和（出现期次）范围 [577,686]（期望 634.18），全矩阵和 = 20928 = 6N。"
+    },
+    {
+     "name": "pooled_red_chi2(reds: np.ndarray, alpha: float = ALPHA_COMP) -> Chi2Result",
+     "算法": "复用 ml/spectral.chi2_uniform_test(reds.ravel(), n=33, alpha=alpha)——33 号边际频率均匀性卡方，df=32，期望 E=6N/33=634.18。红球唯一直接复用蓝球卡方的入口（参数化 n=33）。",
+     "边界": "N<33 时 df 恒 32 但期望<6.18 近似失效——由 MIN_N=500 兜底。",
+     "实测锚点": "真实数据 stat=44.661, df=32, p=0.0677（PM 锚 44.66/0.068 完全复现）。p 贴近 0.05 为边界值：报告如实呈现，作为检验灵敏度证据而非检验失效（G7 口径）。"
+    },
+    {
+     "name": "indicator_lag1_zs(indicator: np.ndarray) -> np.ndarray",
+     "算法": "对 33 条指示序列逐条计算 lag-1 自相关 z：x 居中后 r1=Σx_t·x_{t-1}/Σx_t²，z=r1·√N。返回 (33,) float。",
+     "边界": "序列全 0 或全 1 时 Σx_t²=0 → 该号 z=0（实际不可能出现，MIN_N=500 且每号出现期次≈634）。",
+     "实测锚点": "真实数据 max|z|=1.885（临界 Bonf α/33=3.172 未触发）。MC 校准（200 合成数据集，N=3488）：族内（33 条取 max）误报率 17/200=8.5% vs 名义 5%——0/1 序列 p=0.18 的自相关尾部仍轻度膨胀，故本函数仅作报告诊断，判定走 repeat_rate_test（ADR-003 红球版）。"
+    },
+    {
+     "name": "repeat_rate_test(reds: np.ndarray, alpha: float = ALPHA_COMP) -> RepeatRateResult",
+     "算法": "T=N-1 个相邻期对，总重号数 R=Σ_t |S_t∩S_{t-1}|。H0 下逐期重号数 X_t 的条件分布为超几何(33,6,6)：E=36/33，Var=6·6·27·27/(33²·32)=0.753099（全条件方差公式，与前期无关）。z=(R-T·μ)/√(T·σ²)。significant = |z| > norm.ppf(1-alpha/2)。",
+     "返回": "RepeatRateResult(observed_rate, expected_rate, total_repeats, z, significant)。",
+     "实测锚点": "真实数据 观测 1.0826/期 vs 期望 1.0909（PM 锚 1.083/1.091），z=-0.566 未触发。MC 校准（200 组合成数据集）：z 均值 0.034、sd=1.072，|z|>1.96 误报 11/200=5.5%——精确矩公式校准良好。"
+    },
+    {
+     "name": "indicator_fisher_g_family(indicator: np.ndarray, alpha: float = ALPHA_COMP/RED_N) -> List[FisherGResult]",
+     "算法": "对 33 条指示序列逐条复用 ml/spectral.fisher_g_test(seq, alpha=alpha, complex_signal=False)（实序列 bins 1..(N-1)//2，m=(N-1)//2）。族内 Bonferroni：逐条 alpha=ALPHA_COMP/33。",
+     "返回": "List[FisherGResult]（33 个，含 g/p/peak_bin/significant）。",
+     "实测锚点": "真实数据 min p=0.0315（号33 附近），0/33 显著（阈值 1.72e-4）。MC 子抽样校准（40 数据集×33 序列）：显著数 3/1320=0.23% vs 名义 0.15%，轻微膨胀方向安全。检测力：指示序列 p=6/33≈0.18，频谱功效高于蓝球 one-hot（每号期望 634 次 vs 218 次）。"
+    },
+    {
+     "name": "cooccurrence_matrix(reds: np.ndarray) -> np.ndarray",
+     "算法": "返回 (33,33) int64 对称矩阵 C：C[a,b] = 号码 a+1 与 b+1 同现期数（每期 15 对）。对角恒 0，C=C.T，总和=30N。",
+     "边界": "N≥1。",
+     "实测锚点": "真实数据：对称=True、对角和=0、总和=104640=30N（PM 锚 104,640 复现）、非对角观测范围 [71,132]、每对期望 30N/1056=99.09（sd=√(N·p(1-p))=9.81）。"
+    },
+    {
+     "name": "bh_fdr(pvals: np.ndarray, alpha: float) -> np.ndarray",
+     "算法": "自实现 Benjamini-Hochberg（scipy 无现成 BH）：p 升序 p_(1)..p_(m)；找最大 k* 使 p_(k) ≤ (k/m)·α；拒绝 p_(1)..p_(k*)。返回 (m,) bool 掩码。实现细节：np.argsort 保序，np.arange(1,m+1)/m*alpha 向量化阈值，np.argwhere(below).max() 取 k*，无则全 False。",
+     "边界": "m=0 → 空掩码；alpha∈(0,1)。",
+     "实测锚点": "全 null 200 组×528 均匀 p：每组建检出数均值 0.060、max 1——完全 null 下 P(任一检出)≈α 是 BH 的正确性质（非 α·m）；注入验证 100 组×10 个真信号(p~U(0,1e-6))：检出均值 10.00/10 全检出；真实数据 528 对上尾 0 检出、下尾 0 检出（min p=3.98e-4 > (1/528)·α_comp）。"
+    },
+    {
+     "name": "pair_binomial_stats(C: np.ndarray, n_periods: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]",
+     "算法": "对 528 对逐对二项检验（逐期独立 Bernoulli(15/528)，正态近似精确）：z=(C[i,j]-N·p)/√(N·p(1-p))，p=15/528。返回 (z_upper, p_upper, p_lower) 均为 (528,)：p_upper=sf(z)（正向同现），p_lower=cdf(z)（互斥方向）。",
+     "边界": "N·p≥5 时正态近似良好（N≥176；MIN_N=500 覆盖）。",
+     "实测锚点": "真实数据最大 z=3.354（(6,14) 与 (1,22)，count=132），min p_upper=3.98e-4；Bonferroni 528 临界 z=3.904 → 0 通过（过严，弃用，ADR-004）；BH-FDR @α_comp → 双向均 0 检出。"
+    },
+    {
+     "name": "subclass_stats(obs: int, n_pairs: int, n_shared: int, n_disjoint: int, n_periods: int) -> SubclassResult",
+     "算法": "子类聚合 z 检验（多重比较面 528→5）。精确矩闭式：μ=n_pairs·15/528；Var=μ + n_shared·P3 + n_disjoint·P4 − μ²，其中 P3=C(30,3)/C(33,6)（两对共享 1 号时同现概率）、P4=C(29,2)/C(33,6)（两对不相交时同现概率）、n_shared/n_disjoint 为子类内部『有序对-对』计数（连号 62/930、同尾 114/1368、区间 990/1980）。z=(obs−N·μ)/√(N·Var)。",
+     "返回": "SubclassResult(name, n_pairs, observed, expected, z, significant)。",
+     "实测锚点": "闭式方差与 C(33,6)=1,107,568 全枚举精确对照（单次 1.4s）：连号 var=0.650826、同尾 var=0.799746、区间 var=3.475932 全部一致（测试固化）。真实数据（临界 3.254）：连号 obs=3118 exp=3170.9 z=-1.110（PM 的 -0.87 用独立性近似方差，本架构精确矩更保守且方向一致）、同尾 3827/3864.5 z=-0.711、区间1 5616/5450.0 z=+1.508、区间2 5551/5450.0 z=+0.917、区间3 5119/5450.0 z=-3.006（近阈值条目，未达 3.254，报告如实呈现）。"
+    },
+    {
+     "name": "pmi_ranking(C: np.ndarray, freq: np.ndarray, n_periods: int) -> List[Tuple[float, int, int]]",
+     "算法": "PMI(a,b)=ln(C_ab·N/(f_a·f_b))，f_a=号码 a 总出现次数。天然校正高频号同现。仅作排序展示，不判显著。返回按 PMI 降序的 (pmi, i+1, j+1) 列表。",
+     "边界": "C_ab=0 的对跳过。",
+     "实测锚点": "真实数据 top5：(4,30) PMI=+0.0743 count=121、(8,30) +0.0449 count=123、(7,16) +0.0416 count=120、(9,15) +0.0387 count=118、(13,19) +0.0243 count=119；PMI 最大对 (1,22) count=132 但 PMI 仅 +0.0134（高频号校正后排名靠后）。"
+    },
+    {
+     "name": "exact_sum_null() -> Tuple[np.ndarray, float, float]",
+     "算法": "33C6 精确卷积 null：DP ways[s][k]=从 1..33 选 k 个不同数且和为 s 的方式数，逐值 v∈1..33 逆序更新（s 降序、k 降序）；pmf=ways[:,6]/C(33,6)。确定性、无 MC、秒级。模块级 lru_cache 缓存。",
+     "返回": "(pmf[0..183], mean, var)。",
+     "实测锚点": "DP 单次 9.1ms；总和=C(33,6)=1,107,568；mean=102.0000（=6·17 闭式）、var=459.000、sd=21.424、支撑 [21,183]（PM 锚 21..183 复现）。"
+    },
+    {
+     "name": "span_null() -> Tuple[np.ndarray, float, float]",
+     "算法": "跨度闭式 null：span=s 的组合数=(33−s)·C(s−1,4)（选 (min,max) 差 s 共 33−s 组，中间 4 个在 s−1 个数中任选），s=5..32。",
+     "返回": "(pmf[0..32], mean, var)。",
+     "实测锚点": "pmf 总和=1.000000（=C(33,6) 自洽）；mean=24.2857、var=23.4184。真实数据跨度 mean=24.251（z=-0.422 未触发），观测范围 [7,32]。"
+    },
+    {
+     "name": "odd_even_null() -> Tuple[np.ndarray, float, float]",
+     "算法": "奇偶比闭式 null：奇数个数 k 的组合数=C(17,k)·C(16,6−k)，k=0..6。",
+     "返回": "(pmf[0..6], mean, var)。",
+     "实测锚点": "pmf 总和=1.000000；mean=3.0909（=6·17/33 闭式）、var=1.2645。真实数据奇数个数 mean=3.0467（z=-2.32 报告项），7 格卡方 chi2=12.009 df=6 p=0.0618（临界 0.00568 未触发）。"
+    },
+    {
+     "name": "moments_z_test(obs_mean: float, null_mean: float, null_var: float, n: int, alpha: float = ALPHA_COMP) -> ZTestResult",
+     "算法": "精确矩均值 z 检验：z=(obs_mean−null_mean)/√(null_var/n)；p=2·(1−Φ(|z|))；significant = |z|>norm.ppf(1−alpha/2)。无分箱任意性（对比 chi2 拟合对分箱敏感）。",
+     "返回": "ZTestResult(z, p_value, significant)。",
+     "实测锚点": "真实数据和值：obs_mean=100.9607 vs null 102.0000，z=-2.865、p=0.0042（双侧）→ 在 α_comp=0.00568 下触发（路径3 判定项）。和值 chi2 拟合（60 等概率箱）chi2=48.69 df=47 p=0.4048 仅报告——分箱敏感实证：40 箱 p=0.0500、60 箱 p=0.4048、80 箱 p=0.2959，故拟合不作判定（ADR-006）。"
+    },
+    {
+     "name": "odd_even_chi2(odds: np.ndarray, alpha: float = ALPHA_COMP) -> Chi2Result",
+     "算法": "7 格卡方（自然类别无分箱问题）：counts=bincount(odds,0..6)，期望=odd_even_null pmf·N，df=6。",
+     "返回": "Chi2Result(stat, df, p_value, significant)。",
+     "实测锚点": "真实数据 chi2=12.009 df=6 p=0.0618（临界 0.00568 未触发）。"
+    },
+    {
+     "name": "run_red_spectral_test(reds: np.ndarray, alpha: float = 0.05) -> RedSpectralResult",
+     "算法": "【前置】_validate_reds：形状 (N,6)、int、值域 1..33、每行 6 个互异（集合语义，不要求升序）；N<MIN_N(500) → 返回 verdict='INSUFFICIENT_DATA' 报告（不崩溃）。α 拆分：alpha_path=1-(1-alpha)^(1/3)（Sidak 三路）；alpha_comp=1-(1-alpha_path)^(1/3)（路径内三组件）。\n【路径1 时间维度】① pooled_red_chi2 @alpha_comp；② repeat_rate_test @alpha_comp；③ indicator_fisher_g_family 33 条 @alpha_comp/33（Bonf）。gate1 = 任一触发。indicator_lag1_zs 计算但仅入报告（重尾诊断）。\n【路径2 横截面】① cooccurrence_matrix → pair_binomial_stats → bh_fdr(p_upper, alpha_comp)（正向同现）+ bh_fdr(p_lower, alpha_comp)（互斥，且互斥须 obs≤期望−3σ 才计入）；② 子类族 5 测试（连号/同尾/区间1/2/3）Bonf @alpha_comp/5（双侧临界 z=3.254）；③ pmi_ranking 仅排序展示。gate2 = FDR 双向任一检出 或 子类任一触发。\n【路径3 派生标量】① exact_sum_null + moments_z_test（和值均值，判定项）；② span_null + moments_z_test（跨度均值，判定项）；③ odd_even_null + odd_even_chi2（奇偶 7 格卡方，判定项）。三项 Bonf @alpha_comp（双侧临界 z=2.766）。和值 chi2 拟合（60 等概率箱）与和值样本方差仅报告。gate3 = 任一触发。\n【verdict 判定】优先级（高→低）：INSUFFICIENT_DATA > PEAK_CONFIRMED > STRUCTURAL_ANOMALY > NONSPECTRAL_BIAS > SCALAR_BIAS > FLAT。PEAK_CONFIRMED=路径1 fisher_g 族有显著（某号码周期性出现，最强最可核验信号）；STRUCTURAL_ANOMALY=路径2 触发（横截面签名）；NONSPECTRAL_BIAS=路径1 卡方/重号率触发（非周期时序偏差）；SCALAR_BIAS=路径3 触发（派生量，最弱）；全过=FLAT。所有路径级判定均入报告（不隐藏）。",
+     "返回": "RedSpectralResult(path1, path2, path3, verdict, conclusion, alpha_split)。",
+     "conclusion 模板": "FLAT：『N 期红球序列未发现显著非随机结构：33 号边际卡方 p=..、重号率 z=..、逐号谱峰显著 0/33、528 对同现 FDR 双向 0 检出、子类连号 z=.. / 同尾 z=.. / 区间 z=..、和值均值 z=..（临界 ..）。统计证据支持摇奖机公平假设。』；SCALAR_BIAS：『未发现时间与横截面结构异常，但派生标量出现偏差：和值均值 .. vs 精确 null ..（z=..，p=..）显著偏低/高，效应量约 ..%（.. 量级），逐年代弥散（非单一时期驱动）；无实践意义，建议持续监控并复核数据源一致性。』；STRUCTURAL_ANOMALY：『横截面检验发现显著异常：子类 X 观测 .. vs 期望 ..（z=..，p=..）。注意显著≠可预测——多重比较下仍有假阳性可能，且彩民群体已对连号/同尾类模式定价，不构成选号建议；建议分段复核数据源并持续监控。』；NONSPECTRAL_BIAS：『无谱峰但边际频率/重号时序偏离均匀（卡方 p=..，重号率 z=..），属非周期偏差，建议复核数据源与开奖号段。』；PEAK_CONFIRMED：『号码 X 的出现呈周期性（谱峰 bin ..，p=..），疑似物理偏差，建议深挖（球重/磨损/数据源）并人工复核。』；INSUFFICIENT_DATA：『样本量不足（N=.. < 500），所有检验检测力不足，不判定。』",
+     "实测锚点": "全流程真实数据单次 0.34s（含矩阵构建与全部检验）。100 组合成数据集（N=3488，每期 6 个无放回均匀抽样）组合误报率：P1=1、P2=3、P3=2、任一=6/100=6%（命中 5%±2% 目标；测试断言 ≤12 留余量）。真实数据：gate1=False、gate2=False、gate3=True（和值均值 z=-2.865）→ verdict=SCALAR_BIAS。"
+    },
+    {
+     "name": "red_spectral_report_dict(result: RedSpectralResult, run_at: str, source: str) -> Dict",
+     "算法": "RedSpectralResult → 纯 dict（np 数组转 list，np.generic 转 float/int），供 evaluate.py 直接 json.dumps / render_md_spectral_red。JSON 全量（33×2 逐号数组、528 对 z 矩阵、PMI 排序、子类明细、近阈值条目），MD 仅聚合+极端（G8 口径）。",
+     "返回": "见 evaluate_integration.报告schema.spectral_red_probe。",
+     "实测锚点": "真实数据经 evaluate.main(['--spectral-red']) 产出 analysis/results/spectral_red_probe.{json,md}：JSON ~30KB（含 path1/path2/path3/verdict/near_miss/notes），MD 单页可读（聚合表 + 极端条目 + conclusion）；verdict=SCALAR_BIAS、n_periods=3488 与 run_red_spectral_test 输出逐字段一致（序列化无损，np 类型全转原生）。"
+    }
+   ]
+  }
+ },
+ "evaluate_integration": {
+  "CLI 形态": "新增 --spectral-red（action='store_true'）：红球三路径独立探针模式，与 --spectral/--strategy/--features 互斥（argparse error，同蓝球先例）。main() 分支顺序：--spectral-red 分支放最前（先于 --spectral 与 --strategy 分支），内部 reds=df[RED_COLS].to_numpy(dtype=int) → run_red_spectral_test(reds) → red_spectral_report_dict → write_report(out)；默认输出路径 ROOT/'analysis/results/spectral_red_probe.json'，双格式 .json+.md 自动落盘；stdout 打印 '[evaluate] 红球频谱探针完成: verdict=.. n=.. -> out'（关键交付走 stdout，过程日志走 stderr）。--list 枚举不受影响；--smoke 不影响探针模式。蓝球 --spectral 行为完全不变（回归 21 条 test_spectral.py 用例）。",
+  "write_report 分派": "write_report 现有 .md 分支扩展为：report.get('kind')=='spectral_red_probe' → render_md_spectral_red(report)；'spectral_probe' → render_md_spectral(report)（保持现状）；其余 → render_md(report)。新增 render_md_spectral_red(report) -> str：头部 verdict 加粗 + n_periods + alpha_split；路径1 节（合并卡方 stat/p、重号率观测/期望/z、逐号谱峰显著数、lag-1 max_z 诊断、边界 p 提示）；路径2 节（矩阵性质一行、FDR 双向检出数、子类 5 行表格（名称/观测/期望/z/显著标记）、PMI top5）；路径3 节（和值/跨度/奇偶 z 表）；『最接近阈值』条目（近阈值子类与对、边界 p）；conclusion 段落；notes 数组。JSON 由 write_report 默认分支输出全量。",
+  "报告schema.spectral_red_probe": {
+   "kind": "spectral_red_probe",
+   "run_at": "YYYY-MM-DD HH:MM:SS",
+   "source": "ml/data/1.csv (Red1..Red6)",
+   "n_periods": 3488,
+   "alpha": 0.05,
+   "alpha_split": {
+    "path": 0.01695,
+    "comp": 0.00568,
+    "note": "Sidak 三路拆分(α_path)→路径内三组件拆分(α_comp)；族内 Bonferroni：逐号谱峰 α_comp/33、子类 5 测试 α_comp/5；528 对用 BH-FDR @α_comp"
+   },
+   "path1": {
+    "passed": "bool",
+    "pooled_chi2": {
+     "stat": "float",
+     "df": 32,
+     "p_value": "float",
+     "significant": "bool",
+     "boundary_note": "p 贴近 0.05 时如实呈现，作为检验灵敏度证据"
+    },
+    "per_number": {
+     "expected_per_number": 634.18,
+     "counts": "[33] 每号出现期次",
+     "lag1_zs": "[33] 报告诊断不判定（重尾 MC 8.5% vs 名义 5%）",
+     "lag1_max_z": "float",
+     "fisher_g_p_values": "[33]",
+     "fisher_g_min_p": "float",
+     "fisher_g_significant_count": "int"
+    },
+    "repeat_rate": {
+     "observed": "float",
+     "expected": 1.090909,
+     "z": "float",
+     "significant": "bool",
+     "variance_note": "超几何精确矩 var=0.753099"
+    },
+    "verdict": "FLAT | NONSPECTRAL_BIAS | PEAK_CONFIRMED"
+   },
+   "path2": {
+    "passed": "bool",
+    "matrix": {
+     "symmetric": "bool",
+     "diagonal_zero": "bool",
+     "total": "int",
+     "expected_total": "30N",
+     "expected_per_pair": "float",
+     "obs_range": "[min,max]"
+    },
+    "pair_tests": {
+     "n_pairs": 528,
+     "method": "逐对二项检验(逐期独立 Bernoulli(15/528))正态近似 + BH-FDR(上尾正向同现 @α_comp) / BH-FDR(下尾互斥 @α_comp 且 obs≤期望−3σ)",
+     "z_matrix": "[33×33] 全量（JSON）",
+     "max_z": "float",
+     "min_p_upper": "float",
+     "fdr_sig_positive": "int",
+     "fdr_sig_negative": "int",
+     "bonferroni_note": "528 对 Bonferroni 临界 z=3.904 过严弃用（ADR-004）"
+    },
+    "subclasses": [
+     {
+      "name": "连号",
+      "n_pairs": 32,
+      "observed": "int",
+      "expected": "float",
+      "z": "float",
+      "significant": "bool"
+     },
+     {
+      "name": "同尾",
+      "n_pairs": 39,
+      "observed": "int",
+      "expected": "float",
+      "z": "float",
+      "significant": "bool"
+     },
+     {
+      "name": "区间1[1..11]",
+      "n_pairs": 55,
+      "observed": "int",
+      "expected": "float",
+      "z": "float",
+      "significant": "bool"
+     },
+     {
+      "name": "区间2[12..22]",
+      "n_pairs": 55,
+      "observed": "int",
+      "expected": "float",
+      "z": "float",
+      "significant": "bool"
+     },
+     {
+      "name": "区间3[23..33]",
+      "n_pairs": 55,
+      "observed": "int",
+      "expected": "float",
+      "z": "float",
+      "significant": "bool"
+     }
+    ],
+    "pmi_top": "[10] (pmi, a, b, count) 降序，仅排序展示",
+    "mutual_exclusion_definition": "BH-FDR 下尾显著 且 obs ≤ 期望−3σ",
+    "verdict": "FLAT | STRUCTURAL_ANOMALY"
+   },
+   "path3": {
+    "passed": "bool",
+    "sum": {
+     "null": "33C6 精确卷积(DP，确定性无 MC)",
+     "null_mean": 102.0,
+     "null_var": 459.0,
+     "obs_mean": "float",
+     "z": "float",
+     "p_two_sided": "float",
+     "significant": "bool",
+     "chi2_fit_report": {
+      "n_bins": 60,
+      "stat": "float",
+      "df": "int",
+      "p": "float",
+      "note": "仅报告；分箱敏感(40箱 p=0.05/60箱 p=0.40/80箱 p=0.30)，判定走精确矩均值 z"
+     }
+    },
+    "span": {
+     "null": "闭式 (33−s)·C(s−1,4)/C(33,6)",
+     "null_mean": 24.2857,
+     "null_var": 23.4184,
+     "obs_mean": "float",
+     "z": "float",
+     "significant": "bool"
+    },
+    "odd_even": {
+     "null": "闭式 C(17,k)·C(16,6−k)",
+     "chi2": "float",
+     "df": 6,
+     "p": "float",
+     "obs_mean_odd": "float",
+     "null_mean_odd": 3.0909,
+     "significant": "bool"
+    },
+    "verdict": "FLAT | SCALAR_BIAS"
+   },
+   "near_miss": [
+    "最接近阈值的子类/对/边界 p 列表（如 区间3[23..33] z=-3.006 vs 临界 3.254；合并卡方 p=0.0677；奇数个数 z=-2.32）——JSON 全量、MD 单列一节"
+   ],
+   "verdict": "FLAT | PEAK_CONFIRMED | NONSPECTRAL_BIAS | STRUCTURAL_ANOMALY | SCALAR_BIAS | INSUFFICIENT_DATA",
+   "conclusion": "中文结论段落（模板见 run_red_spectral_test）",
+   "notes": [
+    "检验器不预测：本报告仅呈现统计证据，不构成选号建议（延续蓝球 extra_notes 口径）",
+    "横截面显著 ≠ 可预测：多重比较 + 彩民群体已对连号类模式定价，显著项只做证据呈现",
+    "边界 p 值如实呈现（如合并卡方 p=0.0677），是检验灵敏度证据而非检验失效",
+    "逐号 lag-1 z 重尾（MC 族误报 8.5% vs 名义 5%），仅报告诊断；判定走聚合重号率 z",
+    "和值 chi2 拟合分箱敏感，仅报告；判定走精确矩均值 z（无分箱任意性）",
+    "PMI 为描述性排序指标，不用于显著性判定"
+   ]
+  },
+  "不动项": "ml/eval/walk_forward.py 签名与实现零改动；ml/config.py 只读（RED_COLS 已存在）；FEATURE_TOGGLES 不加条目；ml/spectral.py 公开接口零改动（红球侧全部参数化传参 n=33 / complex_signal=False）。"
+ },
+ "tests": {
+  "tests/test_spectral_red.py": "新建，LF，运行命令 .venv/bin/python -m pytest tests/test_spectral_red.py -q。import 风格对齐 tests/test_spectral.py（SSQ 路径 sys.path.insert + from ml.spectral_red import ...）。真实数据 fixture 用 evaluate.load_data()。test_code_quality.py 的 TARGETS 追加 ml/spectral_red.py（零豁免：调用链≤3 层 + Google docstring）。",
+  "用例清单": [
+   "test_red_indicator_matrix_structure：形状 (33,N)；行和范围含期望 634.18；全矩阵和=6N；任意列恰 6 个 True（每期 6 号）。",
+   "test_pooled_chi2_real_data_anchor：真实数据 stat≈44.66（容差 0.1）、df=32、p≈0.068（容差 0.005）——PM 锚固化，防数据更新后漂移。",
+   "test_repeat_rate_exact_moments_and_real：单期重号数期望=36/33、方差=0.753099 闭式断言；真实数据观测≈1.0826（容差 0.01）且 |z|<2.766。",
+   "test_indicator_lag1_report_only：真实数据 max|z|<3.0（仅报告通道，不参与判定）；返回长度 33。",
+   "test_indicator_fisher_g_family_real：真实数据 0/33 显著（α_comp/33）；min p>α_comp/33；结构完整（每项含 g/p/peak_bin）。",
+   "test_cooccurrence_matrix_properties：对称、对角 0、总和=30N、每对期望=30N/1056、真实数据观测范围 [71,132]（容差放宽防漂移）。",
+   "test_bh_fdr_null_property：200 组×528 均匀 p @α=0.05：每组检出数 ≤2 且均值 <0.15（完全 null 下 P(任一检出)≈α）。",
+   "test_bh_fdr_detects_injected：100 组注入 10 个真信号(p<1e-6)：检出 ≥9/10（实测 10/10）。",
+   "test_bh_fdr_real_data_zero：真实数据 528 对双向均 0 检出（α_comp）。",
+   "test_subclass_closed_form_matches_enumeration：一次 C(33,6) 全枚举（~1.4s）验证连号/同尾/区间1 的闭式 var == 枚举 var（连号 0.650826、同尾 0.799746、区间 3.475932，容差 1e-9）。",
+   "test_subclass_real_data_anchors：连号 obs=3118 exp=3170.9 z≈-1.11（容差 0.02）；同尾 obs=3827 z≈-0.71；区间3 obs=5119 z≈-3.01（近阈值，不达 3.254——断言 |z|<3.254 且 >2.5，防数据漂移后误判）。",
+   "test_exact_sum_null_dp：总和=C(33,6)；mean=102、var=459（容差 1e-9）；支撑 [21,183]；两次调用结果一致（确定性）。",
+   "test_span_odd_null_closed_form：span pmf 总和=1、mean=24.2857；odd pmf 总和=1、mean=3.0909。",
+   "test_moments_z_sum_real：真实数据和值 mean z≈-2.865（容差 0.05）且 p<0.01——路径3 判定项锚点。",
+   "test_odd_even_chi2_real：真实数据 chi2≈12.01 df=6 p≈0.062（容差 0.01），未触发 α_comp。",
+   "test_combination_fpr_mc：100 组合成数据集（N=3488，rng 固定种子）→ 非 FLAT 计数 ≤12（实测 6/100；Bin(100,0.06) P(X≥13)=0.0073 留余量）。实测 ~36s。",
+   "test_injected_pair_detected：合成数据注入（前 300 期强制 (1,2) 同现）→ path2 FDR 检出 ≥1 对且含 (1,2)。",
+   "test_insufficient_data：N=200 合成序列 → verdict='INSUFFICIENT_DATA' 不崩溃、结构完整。",
+   "test_real_data_smoke：load_data() 全量 → 结构完整、verdict ∈ 6 值枚举、三路径分节齐全、运行 <30s（不断言具体 verdict，防数据更新脆弱；但断言 path1.passed=True 当前口径）。",
+   "test_evaluate_cli_spectral_red_writes_report：evaluate.main(['--spectral-red','--out',tmp]) → .json+.md 双文件，kind=='spectral_red_probe'，verdict 合法。",
+   "test_cli_mutual_exclusion：--spectral-red 与 --strategy/--features/--spectral 同传 → SystemExit(argparse.error)。"
+  ]
+ },
+ "file_manifest": {
+  "新建": [
+   "ml/spectral_red.py（LF，纯 numpy/scipy/math/itertools，from ml import spectral 复用；全部函数规格见 modules 节；test_code_quality 零豁免）",
+   "tests/test_spectral_red.py（LF，21 个用例见 tests 节）",
+   "docs/arch_spectral_red.json（本文件）"
+  ],
+  "修改": [
+   "evaluate.py（LF 957 行，可安全 patch）：①顶部 import ml.spectral_red 的 run_red_spectral_test/red_spectral_report_dict；②CLI 新增 --spectral-red；③main() 加 spectral-red 分支（最前，与 --spectral/--strategy/--features 互斥）；④新增 render_md_spectral_red + write_report 按 kind 分派（spectral_red_probe → render_md_spectral_red；spectral_probe → render_md_spectral 不变）",
+   "tests/test_code_quality.py（LF 239 行）：TARGETS 列表追加 PROJECT_ROOT / \"ml/spectral_red.py\"（一行，零豁免门禁生效）"
+  ],
+  "禁止触碰": [
+   "ml/spectral.py（公开接口零改动；本架构只读复用 chi2_uniform_test/fisher_g_test，红球传参 n=33/complex_signal=False）",
+   "ml/config.py（只读 RED_COLS/BLUE_COLS）",
+   "ml/eval/walk_forward.py（零改动）",
+   "ml/features/feature_engineer.py（CRLF，勿 patch）",
+   "ml/data/*（含 1.csv，只读）",
+   "wheel.py、select_numbers.py、ml/popularity.py、ml/decode.py、ml/models/*、analysis/*、batch_predict_pg.py 等 PG 脚本"
+  ],
+  "交付纪律": "全部验证通过后再 git 提交（本轮 Dev 不碰 git，T8 由 Dev 提交）。并发 agent 可能同时改 evaluate.py，动手前 git status 确认，只认自己文件列表。_verify/ 回归基线口径：本地 collect 仅 27 项（多数需 PG/外部依赖），按运行全集口径回归（上下文标注 60+1 已知失败），提交前确认已知失败集合不扩大、不新增。tests/ 全量回归 .venv/bin/python -m pytest tests/ -q 退出码 0。",
+  "验收命令": [
+   ".venv/bin/python -m pytest tests/test_spectral_red.py -q",
+   ".venv/bin/python -m pytest tests/test_spectral.py tests/test_evaluate.py -q（蓝球/既有回归不破坏）",
+   ".venv/bin/python -m pytest tests/test_code_quality.py -q（零豁免门禁，TARGETS 含新文件）",
+   ".venv/bin/python evaluate.py --spectral-red --out analysis/results/spectral_red_probe.json（.json+.md 双格式，stdout 打印 verdict/n）",
+   ".venv/bin/python evaluate.py --spectral --out analysis/results/spectral_probe.json（蓝球分支回归，行为不变）",
+   ".venv/bin/python evaluate.py --list（枚举正常）"
+  ]
+ },
+ "adrs": [
+  {
+   "decision": "模块形态定稿为单文件 ml/spectral_red.py（LF、纯 numpy/scipy/math、无 pandas 无 IO、不 import evaluate），不拆包",
+   "context": "PM 建议单文件（蓝球 spectral.py 711 行已验证可维护；红球三路径估算 400-700 行）；路径2 矩阵逻辑若膨胀超 800 行再拆包。",
+   "options": [
+    "单文件 ml/spectral_red.py",
+    "ml/spectral_red/ 包（模块分路径）"
+   ],
+   "rationale": "与 spectral.py 对称、import 简单、test_code_quality 检查对象清晰；三路径共享常量与子类常量表，单文件内聚；实测全流程 0.34s 无性能拆包动机。",
+   "rejected": "拆包为过度设计——17 个函数规模下包结构引入无谓 import 路径与检查面。"
+  },
+  {
+   "decision": "三路径结构 + 分层 Sidak α 拆分：α=0.05 → α_path=0.01695（三路 Sidak）→ α_comp=0.00568（路径内三组件 Sidak）",
+   "context": "红球检验面远大于蓝球（33 序列 + 528 对 + 子类 + 标量），总体 FWER 必须受控且要能命中『组合误报率≈5%』验收口径。",
+   "options": [
+    "每路各 α=0.05",
+    "三路 Sidak + 路径内组件 Sidak（本方案）",
+    "全局单测试 Bonferroni"
+   ],
+   "rationale": "实测 100 组合成数据：P1=1、P2=3、P3=2、任一 6/100=6%（命中 5%±2% 目标）。分层 Sidak 保证每路径≈1.7%、总体≈5%，且组件级阈值可解释（子类 5 测试 Bonf α_comp/5 → 临界 z=3.254；逐号谱峰 33 测试 Bonf α_comp/33 → 1.72e-4）。",
+   "rejected": "每路 0.05（组合误报将超 20%）；全局 Bonferroni（数百测试摊 0.05 检测力尽失）。"
+  },
+  {
+   "decision": "路径1 指示序列不走复圆编码；逐号 lag-1 z 仅报告不判定，判定走聚合重号率 z（超几何精确矩）",
+   "context": "PM 定稿：指示序列本身就是 0/1，无类别可复圆编码（复圆编码仅对类别化标量有意义）。蓝球 ADR-003 曾否决 one-hot 指示自相关（稀有类重尾）。",
+   "options": [
+    "复圆编码 0/1 序列",
+    "逐号 lag-1 z 作判定（Bonf 33）",
+    "聚合重号率 z 判定 + 逐号 lag-1 仅报告（本方案）"
+   ],
+   "rationale": "0/1 序列 E[z]≠0，复圆自相关 SE=1/√N 前提破坏，数学上不可用；逐号 lag-1 z MC 实测族误报 8.5% vs 名义 5%（p=0.18 时尾部仍膨胀），作判定会系统性过报；聚合重号率 z 用超几何精确矩（MC 校准 sd=1.07、|z|>1.96 误报 5.5%）单一测试、功效更高（重号率 1.0826 vs 1.0909 的彩民直觉入口）。",
+   "rejected": "复圆编码 0/1（前提破坏）；逐号 lag-1 判定（未校准）。"
+  },
+  {
+   "decision": "528 对同现显著性用自实现 BH-FDR（上尾正向同现 + 下尾互斥），弃用 Bonferroni",
+   "context": "528 对检验面大；PM 实测最大 z≈3.4 无一过 Bonferroni（临界 3.904），Bonferroni 会把真实的中等偏差全压掉。scipy 无现成 BH。",
+   "options": [
+    "Bonferroni 528",
+    "BH-FDR 自实现（本方案）"
+   ],
+   "rationale": "FDR 语义正确（控制 E[V/R]≤α，完全 null 下 P(任一检出)≈α 实测 0.060/组）；真实数据双向 0 检出但 min p=3.98e-4 保留在报告中；注入 10 真信号 100% 检出验证检测力。实现细节（排序/阈值向量化/k* 取最大）已在 bh_fdr 规格固化，测试固化 null 性质与注入检出。",
+   "rejected": "Bonferroni（临界 z=3.904，实测 0 通过，真实偏差全灭）；MC 经验 p 进生产路径（慢，仅测试用）。"
+  },
+  {
+   "decision": "子类聚合 z 检验用精确矩闭式（μ、Var=μ+shared·P3+disjoint·P4−μ²），连号 z=-1.110 而非 PM 的 -0.87",
+   "context": "PM 建议连号 z≈-0.87（独立性近似方差）；本架构实测 PM 的观测数 3118 正确，但精确方差 var=0.650826（考虑相邻对共享号码的相关性）给出 z=-1.110。",
+   "options": [
+    "独立性近似方差 var≈32·p(1−p)=0.883（PM 口径）",
+    "精确矩闭式（本方案）"
+   ],
+   "rationale": "精确矩闭式与 C(33,6) 全枚举 1,107,568 组合精确一致（测试固化）；方向结论不变（略偏冷、无统计证据），且对『多重比较面 528→5』的出口给出了确定性口径；常量表（连号 62/930、同尾 114/1368、区间 990/1980）预计算，运行时零枚举。",
+   "rejected": "独立性近似（低估方差 26%，z 虚高）；运行时全枚举（1.4s/次不可进生产路径，仅测试用）。"
+  },
+  {
+   "decision": "和值 null 用 33C6 精确卷积 DP（9.1ms、确定性、无 MC）；判定用精确矩均值 z 检验，chi2 拟合仅报告",
+   "context": "G1：chi2_uniform_test 的 1..n 均匀 null 对连续量语义不成立；PM 建议 33C6 精确卷积。实测发现 chi2 拟合对分箱数敏感（40 箱 p=0.0500 / 60 箱 p=0.4048 / 80 箱 p=0.2959），不可作判定。",
+   "options": [
+    "精确卷积 + chi2 拟合判定",
+    "精确卷积 + 精确矩均值 z 判定（本方案）",
+    "MC 近似"
+   ],
+   "rationale": "均值 z 无分箱任意性、对位置偏移备择功效最高（和值检验的自然备择就是均值偏移），精确矩（mean=102、var=459）来自 DP 零任意性；实测真实数据 z=-2.865 p=0.0042 在 α_comp=0.00568 触发，且家族校正后仍显著（3·0.0042=0.0126<0.05）。chi2 拟合保留为报告项并注明分箱敏感性。",
+   "rejected": "chi2 拟合判定（分箱任意性导致 p 从 0.05 跳到 0.40）；MC 近似（慢且不可复现）。"
+  },
+  {
+   "decision": "横截面『可证伪直觉』定位：显著 ≠ 可预测；真实数据如实呈现『大号区间略冷』弥散信号",
+   "context": "PRD G6：验收不能写成『必须发现异常』。本架构实测真实数据：区间3[23..33] z=-3.006（近阈值 3.254）、和值均值 z=-2.865（显著）、33 号频率 33(-57.2)/28(-53.2) 偏低——同一『大号略冷』弥散信号在三个聚合层同时显现，但 528 对 FDR 双向 0 检出（弥散不足以在单对层面显著）。",
+   "options": [
+    "只报 FLAT 掩盖标量偏差",
+    "SCALAR_BIAS + 近阈值明细如实呈现（本方案）"
+   ],
+   "rationale": "和值均值 z=-2.865 家族校正后仍显著（0.0126<0.05），隐瞒即造假；效应量仅 1.04/102≈1%、全年代弥散（2003-2026 各年均轻微偏低，2025 -2.34 最甚），无单一事件驱动，结论明确标注『无实践意义、建议监控』。这正是检验器价值的证明：把弥散信号变成带多重比较控制的统计结论。",
+   "rejected": "FLAT 掩盖（不诚实）；STRUCTURAL_ANOMALY 提升区间3 为显著（未达 3.254 家族阈值，仅作近阈值条目）。"
+  },
+  {
+   "decision": "evaluate.py 集成形态：--spectral-red 独立探针模式（与 --spectral/--strategy/--features 互斥），报告 kind='spectral_red_probe'，write_report 按 kind 三路分派",
+   "context": "G5：--spectral 已占用蓝球探针；红球三路径报告与蓝球 schema 不同构（三路径分节），塞进既有报告管线会破坏 schema。",
+   "options": [
+    "--spectral-red 独立模式（本方案）",
+    "扩展 --spectral 子参数",
+    "注册 red 策略走 walk-forward"
+   ],
+   "rationale": "独立模式与蓝球 --spectral 并列对称、互斥规则照抄（argparse.error）、蓝球行为零回归；kind 分派链清晰（spectral_red_probe → render_md_spectral_red / spectral_probe → render_md_spectral / 其余 → render_md）；红球检验器无预测组件，不注册策略（与蓝球 spectral 策略模式的 walk-forward 对照不同——红球无『谱峰相位外推』语义，做策略是伪需求）。",
+   "rejected": "扩展 --spectral（污染蓝球模式与回归面）；red 策略（红球 6 号集合无相位外推语义）。"
+  },
+  {
+   "decision": "报告形态：JSON 全量（33×2 逐号数组、528 对 z 矩阵、子类明细、PMI top10、近阈值条目），MD 仅聚合+极端（G8）",
+   "context": "G8：逐条 33×3 表格过长，MD 全量不可读；蓝球先例 JSON 全量、MD 表格逐门。",
+   "options": [
+    "JSON 全量 + MD 聚合/极端（本方案）",
+    "MD 也全量"
+   ],
+   "rationale": "近阈值条目（区间3 z=-3.006、边界卡方 p=0.0677、奇数 z=-2.32）在 MD 单列一节，保证『边界值不被 verdict 掩盖』（G7 口径）；JSON 全量保证可复算（z_matrix 与逐号数组直接驱动任何下游分析）。",
+   "rejected": "MD 全量（33 行×3 表不可读）；只出 verdict（掩盖细节，违反 G7）。"
+  },
+  {
+   "decision": "互斥操作定义：BH-FDR 下尾显著 且 观测≤期望−3σ；PMI 仅排序展示不判显著",
+   "context": "G3：『互斥』的操作定义缺失（0 同现？低于期望几σ？）。",
+   "options": [
+    "FDR 下尾显著 且 obs≤exp−3σ（本方案）",
+    "单侧 3σ 独立判",
+    "0 同现"
+   ],
+   "rationale": "0 同现定义在 3488 期下几乎不可能（每对期望 99.09），无信息量；FDR 控族 + 3σ 效应量下限双重条件防『统计显著但效应量微』的误读；真实数据下尾 0 检出（min 下尾 p 对应 z≈-2.9 未达链起点），定义留作未来数据触发。PMI 天然校正高频号同现（实测 (1,22) count=132 最高但 PMI 仅 +0.0134 排第 10 之后），作排序展示合理，判显著会引入未控的多重比较面。",
+   "rejected": "3σ 独立判（无族控）；0 同现（无信息量）。"
+  }
+ ],
+ "domain_model": {
+  "bounded_contexts": [
+   "ml/spectral_red.py：纯统计检验域——指示序列、同现矩阵、BH-FDR、子类精确矩、精确卷积 null、三路径编排；零 IO 零框架依赖（仅 numpy/scipy/math + ml.spectral 复用），可独立验证",
+   "ml/spectral.py：既有蓝球检验域——公开接口只读复用（chi2_uniform_test/fisher_g_test），零改动",
+   "evaluate.py：评测/报告域——数据加载（load_data + RED_COLS）、CLI（--spectral-red 分支）、JSON/MD 渲染（kind 分派）",
+   "tests/test_spectral_red.py：验证域——闭式锚点、枚举对照、FPR/功效 MC、真实数据冒烟、evaluate 集成"
+  ],
+  "aggregates": [
+   "RedSpectralResult（路径1/2/3 + verdict + conclusion + alpha_split 的不可变结果聚合，唯一事实来源）",
+   "SpectralRedReport（red_spectral_report_dict 序列化产物，报告 schema 与 RedSpectralResult 一一对应；JSON 全量 / MD 聚合+极端）"
+  ],
+  "events": [
+   "path1_flat / path1_bias(chi2|repeat|peak)",
+   "path2_pair_fdr_found(a, b) / path2_subclass_found(name, z)",
+   "path3_scalar_bias(sum|span|odd)",
+   "verdict_emitted(FLAT|PEAK_CONFIRMED|NONSPECTRAL_BIAS|STRUCTURAL_ANOMALY|SCALAR_BIAS|INSUFFICIENT_DATA)"
+  ]
+ },
+ "risks": [
+  {
+   "risk": "多重比较面大：33 序列 × 逐条检验 + 528 对 + 5 子类 + 3 标量，单测 α=0.05 直接叠加组合误报将超 20%",
+   "mitigation": "分层 Sidak（α_path=0.01695 → α_comp=0.00568）+ 族内 Bonferroni + BH-FDR；MC 实测组合误报 6/100≈6%（命中 5%±2%）；tests/test_combination_fpr_mc 固化（100 组断言 ≤12）",
+   "likelihood": "low"
+  },
+  {
+   "risk": "边界 p 值被 verdict 掩盖（如合并卡方 p=0.0677、区间3 z=-3.006、奇数 z=-2.32）——统计口径正确但信息呈现漏掉值得人工看的苗头",
+   "mitigation": "报告 schema 内置 near_miss 节（JSON 全量、MD 单列一节）+ 逐号/逐对数组全量入 JSON；conclusion 模板引导人工复核而非自动下结论；G7 口径写入 notes",
+   "likelihood": "mid"
+  },
+  {
+   "risk": "横截面显著 ≠ 可预测：显著同现/子类偏差被误读为选号信号（多重比较假阳性 + 彩民群体已对连号类模式定价）",
+   "mitigation": "报告 notes 固定『检验器不预测』与『显著≠可预测』注释；STRUCTURAL_ANOMALY conclusion 模板内置边界声明；显著项只做证据呈现不做选号建议（延续蓝球 extra_notes 口径）",
+   "likelihood": "mid"
+  },
+  {
+   "risk": "BH-FDR 自实现细节偏离标准（排序、k* 选取、下尾方向）导致 FDR 控制失效",
+   "mitigation": "规格固化算法（argsort 保序、向量化阈值、argwhere(below).max()）；测试固化双重锚点：完全 null 性质（200 组均值 0.060/组≈α）与注入检出（10/10），偏离即红",
+   "likelihood": "low"
+  },
+  {
+   "risk": "chi2 拟合分箱敏感（和值 40 箱 p=0.05 / 60 箱 p=0.40）——若误用作判定，结论随分箱数翻转",
+   "mitigation": "判定走精确矩均值 z（无分箱任意性）；chi2 拟合仅报告并注明敏感性；测试只断言结构不断言拟合 p",
+   "likelihood": "low"
+  },
+  {
+   "risk": "组合误报率校准漂移：数据更新（N 增长）后各检验功效/FPR 变化，固定阈值可能过严或过松",
+   "mitigation": "MC 校准锚点全部基于 N=3488 实测；test_combination_fpr_mc 用固定种子合成数据（不依赖真实数据）固化；数据更新后重跑该测试即可发现漂移",
+   "likelihood": "low"
+  },
+  {
+   "risk": "样本量边界：N<500 时所有检验检测力不足（528 对每对期望<14.2）；N<176 时二项正态近似失效",
+   "mitigation": "MIN_N=500 硬边界返回 INSUFFICIENT_DATA 不判定（覆盖 176 近似线）；3488 期已测算各层可检效应量（子类 3.25σ、逐号谱峰 1.72e-4、均值 z 2.766）",
+   "likelihood": "low"
+  },
+  {
+   "risk": "输入数据形状假设被破坏：红球行非集合语义（重复号/越界/非 int），或未来数据列序变化",
+   "mitigation": "_validate_reds 硬校验（形状/值域/每行互异）；真实数据已含 1 行未升序 [12,15,5,23,6,25]，按集合语义处理并在规格中注明；校验失败抛 ValueError 而非静默错算",
+   "likelihood": "low"
+  },
+  {
+   "risk": "并发 agent 同时修改 evaluate.py / tests/test_code_quality.py，或统计实现偏离本规格（子类常量表、DP、FDR、α 拆分）",
+   "mitigation": "只改 evaluate.py + test_code_quality.py（均 LF 可 patch）+ 3 个新文件；动手前 git status；验收命令含锚点测试（闭式 var vs 枚举、卡方 p=0.068、z=-2.865、组合 FPR），偏离即红",
+   "likelihood": "low"
+  }
+ ],
+ "confidence": 0.9,
+ "open_questions": [
+  "红球检验器是否纳入 cron 定期邮件推送（延续蓝球 open_question：本轮不做，等 Rocky 指令；若纳入走 no_agent 直发 SMTP，hermes-ops 约定）",
+  "报告 MD 是否附图（matplotlib 未列入依赖清单确认；默认 JSON+MD 表格不落图，如需可视化另议）",
+  "区间3[23..33] 近阈值条目（z=-3.006 vs 临界 3.254）是否需要在 conclusion 给行动建议（建议默认『监控 + 复核数据源』，不做自动行动）",
+  "和值均值 z=-2.865 的弥散偏低若持续（未来数据更新后 z 继续累积），是否升级为数据源审计触发器（本轮仅报告，不自动升级）"
+ ]
+}

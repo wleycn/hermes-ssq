@@ -1,0 +1,360 @@
+{
+ "handoff_type": "ARCHITECTURE",
+ "system": "SSQ 双色球「蓝球频谱平坦性检验器」（随机性检验探针，非预测器）",
+ "context": "项目 /home/hermes/workspace/python/SSQ，Python 3.14，venv .venv/bin/python（numpy 2.5.2 / pandas / scipy 1.18.0 齐备；statsmodels 未安装，勿依赖）。数据 ml/data/1.csv 共 3488 期（2003 至今，CRLF），蓝球列 Blue1（BLUE_COLS=['Blue1']），取值 1..16 分类变量，load_data() 自 ml.data 导入。任务定位（Rocky 已拍板）：随机性检验探针——把「摇奖机公平」变成统计证据；预期大概率三关全过返回 FLAT，这不是失败而是科学结论。本架构所有统计关键路径均已用项目 venv 实测验证（见各规格中「实测锚点」）：Fisher's g 精确 p 与蒙特卡洛零分布校准（m=63 与 m=3487 双档）、三关组合误报率 4/100≈5% 目标、周期信号检出功率 20/20、真实数据 3488 期全流程 <1 秒、旋转/反射不变性精确到 1e-12。真实数据实测结果：门1 卡方 p=0.8985、复圆自相关 max|z|=1.779@lag10（临界 3.415）；门2 Fisher g=0.002725、峰 bin=1007、p=0.2276；Welch W=64 峰 bin=41（ratio/median=1.21）、W=128 峰 bin=7，原始谱与 Welch 峰位不一致（噪声特征）；门3 未触发（备用：x*=6 的 one-hot g p=0.8155）；verdict=FLAT。已拍板决策照单采信：主编码=复平面单位圆 z=e^(2πi·x/16)；one-hot 作交叉验证层；数值映射 -1~1 不实现（仅作编码伪影演示用例）；三关判定（无编码对照→复谱主检→one-hot 复核）；样本量结论 3488 期足够。唯一对草案的技术修正（有实测证据，见 ADR-002/003）：Fisher's g 精确 p 在『全段原始周期图』上计算而非 Welch 平均谱；门1 自相关用『复圆自相关』而非 one-hot 指示自相关。",
+ "topology": "数据流：ml/data/1.csv → load_data() → df['Blue1'].astype(int).to_numpy() → ml/spectral.run_three_gate_test() → ThreeGateResult → spectral_report_dict() → evaluate.py 的 write_report（.json/.md 双格式）。预测兼容路径：evaluate.py STRATEGIES['spectral'] → strategy_spectral(df_trunc,t,ctx) → build_report() → ml/eval/walk_forward.run_walk_forward（零改动复用）。模块拓扑：ml/spectral.py 为纯统计域（只依赖 numpy/scipy/math/decimal，无 pandas、无数据 IO、无 evaluate 依赖，可独立单测）；evaluate.py 为评测/报告域（数据加载、策略注册、CLI、MD 渲染）；tests/test_spectral.py 为验证域。依赖方向：evaluate.py → ml/spectral.py → (numpy, scipy, stdlib)，无反向依赖。新建 2 文件（ml/spectral.py、tests/test_spectral.py，LF 行尾），修改 1 文件（evaluate.py，LF 787 行，可安全用 patch 工具）。禁止触碰：wheel.py、ml/popularity.py、select_numbers.py、ml/config.py、ml/eval/walk_forward.py（签名不动，只读复用）、ml/data/*、ml/features/feature_engineer.py（CRLF，勿 patch）、ml/decode.py、ml/models/*。",
+ "modules": {
+  "ml/spectral.py": {
+   "定位": "蓝球随机性三关检验纯函数库。无状态、无 IO、纯 numpy 计算；所有函数接受 np.ndarray（int 序列 1..16 或复数序列），返回 dataclass 或 dict。文件行尾 LF。顶部常量：BLUE_N=16；GATE_ALPHA(alpha)=1-sqrt(1-alpha)（Sidak 双门拆分，alpha=0.05 时 0.02532）；SUB_ALPHA=1-sqrt(1-GATE_ALPHA)（门1 双子检验拆分，0.01274）；MIN_N=500（样本量硬边界，低于则返回 INSUFFICIENT_DATA 不判定）。",
+   "函数规格": [
+    {
+     "name": "circular_encode(series: np.ndarray, n: int = BLUE_N) -> np.ndarray",
+     "算法": "z_t = exp(2πi·x_t/n)，x_t ∈ 1..16。返回 complex128 形状 (N,)。",
+     "性质": "|z|=1；x→x+3（模16）等价整体乘常数相位 e^(2πi·3/16)，功率谱不变（不变性测试基础）；H0 下 E[z]=0，复圆自相关零均值、CLT 良好。",
+     "边界": "输入非整数或越界 1..16 抛 ValueError。",
+     "实测锚点": "真实数据 3488 点编码后 FFT 的 Fisher g=0.002725，旋转/反射变换后 g 相同至 12 位小数。"
+    },
+    {
+     "name": "one_hot_series(series: np.ndarray, n: int = BLUE_N) -> np.ndarray",
+     "算法": "返回 (16, N) float64 0/1 矩阵，行 j 为号码 j+1 的指示序列。",
+     "性质": "列和为 1；对标签重排 π 天然不变：one_hot(π(x)) 的行重排 == π(one_hot(x))（测试断言）。",
+     "边界": "同 circular_encode 校验。"
+    },
+    {
+     "name": "periodogram(series: np.ndarray) -> Tuple[np.ndarray, np.ndarray]",
+     "算法": "X = np.fft.fft(series)；P = |X|^2。返回 (P, X)。DC bin=0 后续一律排除。",
+     "边界": "series 长度 ≥ 2。"
+    },
+    {
+     "name": "fisher_g_pvalue(g: float, m: int, prec: int = 60) -> float",
+     "算法": "精确 p = Σ_{k=1}^{⌊1/g⌋} (-1)^(k-1) · C(m,k) · (1 - k·g)^(m-1)。用 decimal.Decimal（getcontext().prec=60）累加：float 下 C(3487,k) 溢出（e^900）；math.comb(m,k) 取精确大整数转 Decimal，(1-kg) 用 Decimal 幂。g≤0 或 m<2 返回 1.0。",
+     "边界": "kmax = floor(1/g)，g≥1 时 kmax=0 → 返回 1.0。",
+     "实测锚点": "m=63：MC 4000 次零分布 0.95 分位 g=0.1086 → 精确 p=0.0502（校准）；m=3487：MC 800 次 0.95 分位 g=0.003245 → p=0.0411（轻微保守，方向安全）；小 m 闭式校验 m=10,g=0.25 → p≈0.663414。单次调用 ~0.5ms。"
+    },
+    {
+     "name": "fisher_g_test(series: np.ndarray, alpha: float = 0.05, complex_signal: bool = True) -> FisherGResult",
+     "算法": "P,X = periodogram(series)。complex_signal=True：取 bins 1..N-1，m=N-1；False（one-hot 实序列）：取 bins 1..N//2（不含 Nyquist），m=N//2-1=(N-1)//2。g = max(P_nz)/sum(P_nz)；p = fisher_g_pvalue(g, m)；significant = p < alpha。peak_bin 为原始 FFT bin 下标（DC=0 坐标系）；peak_freq = peak_bin/N（cycles/sample）。complex_signal=True 时由峰值相位反推号码：x* = round(16·angle(X[peak_bin])/(2π)) mod 16，0 映射为 16；implicated_number 供门3。",
+     "返回": "FisherGResult(g, p_value, m, peak_bin, peak_freq, peak_phase_deg, implicated_number, significant)。",
+     "边界": "全零功率（P_nz.sum()≤0）→ g=0, p=1.0, significant=False。",
+     "实测锚点": "真实数据 g=0.002725 p=0.2276 峰 bin=1007（临界 g≈0.0034@α_gate）；纯周期序列 x_t=1+((3t) mod 16)（N=3488）峰 bin=654=3N/16，p<1e-9；p_inject=0.3 混噪周期 → 20/20 检出。"
+    },
+    {
+     "name": "welch_spectrum(series: np.ndarray, windows: Tuple[int, ...] = (64, 128), overlap: float = 0.5) -> List[WelchResult]",
+     "算法": "对每个 W∈windows：scipy.signal.welch(series, nperseg=W, noverlap=int(W·overlap))。复数输入无共轭对称 → 全部 W 个 bin 有效（DC 外 W-1 个）。n_windows = 1 + (N-W)//(W·(1-overlap))。peak_bin = argmax(P[1:])+1；peak_ratio_median = P[peak_bin]/median(P[1:])；peak_fraction = P[peak_bin]/sum(P[1:])。N<W 时 nperseg=N、noverlap=0 兜底。",
+     "返回": "List[WelchResult(window, noverlap, n_windows, freqs, psd, peak_bin, peak_freq, peak_ratio_median, peak_fraction)]。",
+     "实测锚点": "N=3488, W=64 → 108 窗（≈54 独立窗）；W=128 → 54 窗。真实数据 W=64 峰 bin=41（freq 0.6406, ratio/median=1.21）、W=128 峰 bin=7——与原始谱峰 bin 1007 不一致 → 噪声特征。检测阈值语义：Welch 平均后单峰占总体方差 >0.2% 可检（草案结论，保留为解读口径）。"
+    },
+    {
+     "name": "chi2_uniform_test(series: np.ndarray, n: int = BLUE_N, alpha: float = 0.05) -> Chi2Result",
+     "算法": "counts = np.bincount(series, minlength=n+1)[1:n+1]；期望 E=N/n；stat = Σ(counts-E)^2/E；p = scipy.stats.chisquare(counts, f_exp=[E]*n).pvalue（df=n-1=15）。significant = p < alpha。",
+     "返回": "Chi2Result(stat, df, p_value, counts, expected, significant)。",
+     "实测锚点": "真实数据 stat=8.578, p=0.8985（均匀，通过）。单号频率偏差 >2% 大概率检出、>5% 必检（功效>0.99，草案样本量表）。"
+    },
+    {
+     "name": "lag_autocorrelation(series: np.ndarray, max_lag: int = 20, alpha: float = 0.05) -> LagAutocorrResult",
+     "算法": "z = circular_encode(series)；对 τ=1..max_lag：R(τ) = (1/(N-τ))·Σ_{t=τ}^{N-1} z_t·conj(z_{t-τ})（np.vdot(z[τ:], z[:-τ])/(N-τ)）；z_score(τ) = |R(τ)|·√N。H0 下 SE=1/√N 对复圆自相关精确成立（有界复变量 CLT，实测校准）。族内 Bonferroni：critical_z = scipy.stats.norm.ppf(1 - alpha/(2·max_lag))；significant = any(z_score > critical_z)。",
+     "返回": "LagAutocorrResult(max_lag, rhos, z_scores, max_z, max_z_lag, alpha_family, critical_z, significant)。",
+     "边界": "N≤max_lag 时仅算到 N-1。",
+     "实测锚点": "1000 组随机序列：max|z| 的 99.9 分位 3.11 < 临界 3.42（alpha=0.01274, 20 lags），误报 0/1000。真实数据 max|z|=1.779@lag10。检测力：ρ≥0.03~0.05 可检（z=0.04·√3488≈2.36 量级）。注意：one-hot 指示自相关对稀有类(1/16)重尾严重（实测 95 分位 max|z|=4.15、Bonferroni 下误报 6% vs 名义 1.3%），仅作报告附加诊断，不作判定（ADR-003）。"
+    },
+    {
+     "name": "encoding_invariance(series: np.ndarray, seed: int = 0, n: int = BLUE_N) -> InvarianceResult",
+     "算法": "基态：g0, p0, kb0 = fisher_g_test(circular_encode(series)) 的 g/p/peak_bin。旋转：对 c ∈ {1,3,8}，series' = ((series-1+c) mod n)+1，重算 g/p → rotation 记录 {g_delta_max, p_stable, stable}。反射：series' = n+1-series（等价 z→e^(2πi/n)·conj(z)，幅度谱镜像、g 不变）→ reflection 记录 {g_delta, stable}。重排：π = rng.permutation(1..n)，series' = π(series) → permutation 记录 {g_shift, peak_bin_shift, stable}（不要求相等，仅记录——任意标签重排不保证谱不变，漂移即编码敏感信号）。stable = rotation.stable and reflection.stable。",
+     "返回": "InvarianceResult(rotation, reflection, permutation, stable)。",
+     "断言口径": "旋转/反射 g 必须 |Δg| ≤ 1e-9（理论恒等，测试硬断言）；重排不硬断言。"
+    },
+    {
+     "name": "run_three_gate_test(series: np.ndarray, alpha: float = 0.05, window: int = 64, overlap: float = 0.5, max_lag: int = 20, rolling_step: int = 16) -> ThreeGateResult",
+     "算法": "【前置】N=len(series)；校验 1..16；N<MIN_N(500) 或 N<2·window → 返回 verdict='INSUFFICIENT_DATA' 的报告（不崩溃，结论模板注明检测力不足）。α 拆分：alpha_gate=1-√(1-alpha)（Sidak 双门）；alpha_sub=1-√(1-alpha_gate)（门1 双子检验）。【门1 无编码对照】chi2_uniform_test(alpha=alpha_sub) 且 lag_autocorrelation(alpha=alpha_sub)（族内 Bonferroni：critical_z=norm.ppf(1-alpha_sub/(2·max_lag))）→ passed = 两者皆通过。【门2 复谱主检】fisher_g_test(circular_encode(series), alpha=alpha_gate) → passed = p ≥ alpha_gate（即无显著峰）。同时 welch_spectrum(series, (window, 128)) 作交叉核对：raw 峰 bin k* 与 W=64 峰 bin b 同频判定 |k*/N - b/W| ≤ 1/W；不一致记 unstable_peak=True（即使 g 显著也降低信任）。【门3 one-hot 复核（仅门2 未过时触发）】x* = implicated_number；fisher_g_test(one_hot_series(series)[x*-1], alpha=0.05, complex_signal=False) → confirmed = (p < 0.05) 且 one-hot 峰 bin ∈ {k*, N-k*}±1（同频复现）。【rolling 附加诊断】窗长 window、步进 rolling_step 的滑动窗内 fisher_g_test(circular_encode) 的 p 值数组（仅报告不决策，用于非平稳可视化）。【不变性】encoding_invariance(series)。",
+     "verdict 判定": "优先级：门2 有显著峰且门3 confirmed → PEAK_CONFIRMED；门2 有显著峰且门3 未确认 → PEAK_ARTIFACT；门2 无峰且门1 未过 → NONSPECTRAL_BIAS；门2 无峰且门1 过 → FLAT。优先级顺序保证真周期信号（门1 自相关在 lag=周期处必触发）不被误标 NONSPECTRAL_BIAS（实测 p_inject=0.3 需 20/20 得 PEAK_CONFIRMED，即该顺序的证据）。",
+     "conclusion 模板": "FLAT：『N 期蓝球序列未发现显著非随机结构：卡方均匀 p=..、lag-1~20 复圆自相关 max|z|=..（临界 ..）、复谱 Fisher's g p=..、Welch 峰位稳定=..。统计证据支持摇奖机公平假设。』；PEAK_CONFIRMED：『在 bin ..（周期 .. 期）发现显著谱峰，one-hot 复核号码 .. 复现，疑似物理偏差，建议深挖（球重/磨损/数据源）并人工复核。』；PEAK_ARTIFACT：『复谱峰未在 one-hot 谱复现（p=..），判定为编码伪影而非真实周期结构。』；NONSPECTRAL_BIAS：『无谱峰但频率分布/自相关偏离均匀（卡方 p=.., max|z|=..），属非周期偏差，建议复核数据源与开奖号段。』",
+     "实测锚点": "全流程单次 ~7ms。100 组随机序列（N=3488）误报 4/100=4%（FLAT 96，PEAK_ARTIFACT 2，NONSPECTRAL_BIAS 1，PEAK_CONFIRMED 1）≈ 5% 目标；真实数据 verdict=FLAT。"
+    },
+    {
+     "name": "spectral_report_dict(result: ThreeGateResult, run_at: str, source: str) -> Dict",
+     "算法": "ThreeGateResult → 纯 dict（np 数组转 list，np.generic 转 float/int），供 evaluate.py 直接 json.dumps / render_md_spectral。",
+     "返回": "见 evaluate_integration.报告schema.spectral_probe。"
+    }
+   ]
+  }
+ },
+ "evaluate_integration": {
+  "策略注册表实况": "STRATEGIES 实际形状是 Dict[str, Dict]，非『名字→函数』：{\"random\": {\"fn\": strategy_random, \"kind\": \"baseline\", \"features\": []}, ...}（kind 取值 baseline/feature/model，仅作报告元数据）。Prediction = NamedTuple(reds: List[int], blue: int, blues: Optional[List[int]]=None)；EvalContext = dataclass(probs, config, state)；Strategy = Callable[[pd.DataFrame, int, EvalContext], Prediction]。",
+  "新增策略": "STRATEGIES[\"spectral\"] = {\"fn\": strategy_spectral, \"kind\": \"probe\", \"features\": []}（kind 新增取值 'probe'，list_strategies 列宽 10 兼容）。strategy_spectral(df_trunc, t, ctx) -> Prediction：红球=纯随机 6 红（委托 strategy_random 机制）；蓝球=近窗（ctx.config['spectral_window'] 默认 128 期）复谱 Fisher's g：显著且可反推号码则用相位外推号码，否则随机 1..16；blues=None。函数 docstring 与报告 notes 必须标注『检验器不预测——本策略输出仅用于 walk-forward 谱结构诊断对照，不构成下注建议』。",
+  "双模式取舍": "（主）--spectral 独立探针模式：三关检验全量蓝球序列，输出 kind='spectral_probe' 报告；与 --strategy/--features 互斥（argparse.error）。（辅）--strategy spectral 预测兼容模式：走既有 build_report → run_walk_forward（零改动），测『谱峰相位外推』蓝球命中率 vs 1/16 基线（BLUE_RANDOM_EXPECT）——walk-forward 补充关：真周期结构应显著高于 1/16，平坦则 ≈1/16（预期 verdict=rollback，符合科学预期非失败）；main() 的 strategy 分支给 sname=='spectral' 追加 extra_notes（同 model:pg 的 extra 写法）。",
+  "CLI 变更": "新增参数：--spectral（action='store_true'，触发独立探针模式）、--window（int，默认 64，Welch 主窗长，仅 --spectral 用）。main() 分支顺序：args.spectral 分支放最前（先于 --strategy 分支），内部 blues = df[BLUE_COLS[0]].astype(int).to_numpy() → run_three_gate_test(blues, window=args.window) → spectral_report_dict → write_report(out)；默认输出路径 ROOT/'analysis/results/spectral_probe.json'。--smoke 不影响 spectral 模式（探针是单次全量运行，无 walk-forward）。",
+  "write_report 分派": "write_report 现有 .md 分支直接调 render_md(report)（假定策略报告 schema）；需改为：report.get('kind')=='spectral_probe' 时调 render_md_spectral(report)，否则维持 render_md。新增 render_md_spectral(report) -> str：Markdown 表格逐门呈现（门1 卡方 stat/p、自相关 max_z/critical_z；门2 Fisher g/p/峰 bin/频率、Welch 两窗峰位与 peak_bin_agrees；门3 confirmed；invariance 三行；rolling 汇总；verdict 加粗 + conclusion 段落 + notes）。",
+  "报告schema.spectral_probe": {
+   "kind": "spectral_probe",
+   "run_at": "YYYY-MM-DD HH:MM:SS",
+   "source": "ml/data/1.csv (Blue1)",
+   "n_periods": 3488,
+   "alpha": 0.05,
+   "alpha_split": {
+    "gate": 0.02532,
+    "sub": 0.01274,
+    "note": "Sidak 双门拆分；门1 双子检验再 Sidak；自相关族内 Bonferroni"
+   },
+   "gate1": {
+    "passed": "bool",
+    "chi2": {
+     "stat": "float",
+     "df": 15,
+     "p_value": "float",
+     "significant": "bool"
+    },
+    "autocorr": {
+     "max_lag": 20,
+     "max_z": "float",
+     "max_z_lag": "int",
+     "critical_z": "float",
+     "significant": "bool"
+    }
+   },
+   "gate2": {
+    "passed": "bool",
+    "fisher_g": {
+     "g": "float",
+     "m": "int",
+     "p_value": "float",
+     "peak_bin": "int",
+     "peak_freq": "float",
+     "peak_phase_deg": "float",
+     "significant": "bool"
+    },
+    "welch": [
+     {
+      "window": "int",
+      "noverlap": "int",
+      "n_windows": "int",
+      "peak_bin": "int",
+      "peak_freq": "float",
+      "peak_ratio_median": "float",
+      "peak_fraction": "float"
+     }
+    ],
+    "peak_bin_agrees": "bool",
+    "unstable_peak": "bool"
+   },
+   "gate3": {
+    "implicated_number": "int",
+    "g": "float",
+    "m": "int",
+    "p_value": "float",
+    "peak_bin": "int",
+    "confirmed": "bool",
+    "note": "门2 未触发时为 null"
+   },
+   "invariance": {
+    "rotation": {
+     "g_delta_max": "float",
+     "stable": "bool"
+    },
+    "reflection": {
+     "g_delta": "float",
+     "stable": "bool"
+    },
+    "permutation": {
+     "g_shift": "float",
+     "peak_bin_shift": "int|null",
+     "stable": "bool"
+    }
+   },
+   "rolling": {
+    "window": 64,
+    "step": 16,
+    "n_windows": "int",
+    "min_p": "float",
+    "frac_below_gate_alpha": "float",
+    "note": "仅报告不决策（215 窗下 min_p 受多重比较支配）"
+   },
+   "verdict": "FLAT | PEAK_CONFIRMED | PEAK_ARTIFACT | NONSPECTRAL_BIAS | INSUFFICIENT_DATA",
+   "conclusion": "中文结论段落（模板见 run_three_gate_test）",
+   "notes": [
+    "..."
+   ]
+  },
+  "strategy 模式报告": "沿用既有 build_report schema（kind='probe'），notes 追加：『检验器不预测：spectral 策略输出仅用于诊断对照』『蓝球=近窗谱峰相位外推（无显著峰则随机）』。",
+  "不动项": "ml/eval/walk_forward.py 签名与实现零改动（含 horizon+1 截断约定，调用方 details[:horizon]）；ml/config.py 只读（BLUE_COLS/RED_COLS）；FEATURE_TOGGLES 不加 spectral 条目（策略不依赖特征开关，toggle 检查按名字查找会自动跳过）。"
+ },
+ "tests": {
+  "tests/test_spectral.py": "新建，LF，运行命令 .venv/bin/python -m pytest tests/test_spectral.py -q。import 风格对齐 tests/test_evaluate.py（SSQ 路径 sys.path.insert + from ml.spectral import ...）。真实数据 fixture 用 load_data()。",
+  "用例清单": [
+   "test_circular_encode_unit_circle：|z|=1 逐点；x=1..16 覆盖 16 个 16 次单位根；z(x+8)=-z(x)。",
+   "test_circular_encode_rotation_relation：circular_encode((x-1+c)%16+1) == circular_encode(x)·e^(2πi·c/16)（allclose）。",
+   "test_one_hot_series_structure：形状 (16,N)；每列恰一个 1；行 j 指示号码 j+1。",
+   "test_one_hot_permutation_invariance：one_hot(π(x)) 的行重排 == π·one_hot(x)（π 为 16 置换）。",
+   "test_fisher_g_pvalue_reference_small_m：m=10, g=0.25 → p≈0.663414（闭式手算值，容差 1e-6）；g 单调递减。",
+   "test_fisher_g_pvalue_matches_mc_null：m=3487 蒙特卡洛 2000 组复白噪声原始周期图，|精确p(emp 0.95 分位 g) - 0.05| < 0.02（~0.2s，不需 slow 标记）。",
+   "test_fisher_g_detects_pure_periodic：x_t=1+((3t) mod 16)，N=3488 → peak_bin=654=3N/16，p<1e-9，significant=True。",
+   "test_welch_spectrum_shape_and_fallback：N=3488, W=64 → freqs 长 64、n_windows=108；N=32, W=64 → nperseg 兜底 32 不崩。",
+   "test_chi2_uniform_known_and_random：手工构造 counts 验证 stat；均匀随机序列 p>1e-3。",
+   "test_lag_autocorrelation_calibrated_null：随机序列 N=4000 → max_z < critical_z（α=0.05 默认拆分下临界 3.24 附近；断言 max_z < 3.5 稳健上界）+ 结构字段齐全。",
+   "test_encoding_invariance_rotation_reflection：g 与 p 旋转/反射后 np.isclose(atol=1e-9) 硬断言；permutation 记录字段存在。",
+   "test_three_gate_random_fpr_mc：100 组随机序列（N=3488, rng 固定）→ non-FLAT 计数 ∈ [0, 12]（P(X≥13|Bin(100,0.05))=0.0015；实测 4/100，留余量）。实测 100 组 ~0.7s。",
+   "test_three_gate_detects_noisy_periodic：p_inject=0.3 混噪周期序列（20 种子）→ PEAK_CONFIRMED ≥ 18/20（实测 20/20）。",
+   "test_three_gate_real_data_smoke：load_data() 全量 → 结构完整、verdict ∈ 4 值（不断言具体值，防数据更新后脆弱）、运行 <30s。",
+   "test_three_gate_insufficient_data：N=200 序列 → verdict='INSUFFICIENT_DATA' 不崩溃。",
+   "test_evaluate_strategy_registry_spectral：STRATEGIES 含 'spectral'，kind=='probe'，fn 可调用。",
+   "test_strategy_spectral_smoke：直接调用返回合法 Prediction(reds 6 个 1..33、blue 1..16、blues None)；build_report(df, 'spectral', horizon=5, ...) 冒烟出报告不崩。",
+   "test_cli_spectral_writes_report：evaluate.main(['--spectral','--out',tmp]) → 文件存在，kind=='spectral_probe'，verdict 合法。"
+  ]
+ },
+ "file_manifest": {
+  "新建": [
+   "ml/spectral.py（LF，纯 numpy/scipy/math/decimal，全部函数与 dataclass 见 modules 节）",
+   "tests/test_spectral.py（LF，18 个用例见 tests 节）"
+  ],
+  "修改": [
+   "evaluate.py（LF 787 行，可安全 patch）：①顶部 import ml.spectral 的 run_three_gate_test/spectral_report_dict/circular_encode/fisher_g_test；②新增 strategy_spectral + STRATEGIES['spectral'] 条目；③CLI 新增 --spectral/--window；④main() 加 spectral 分支（最前、与 --strategy/--features 互斥）；⑤新增 render_md_spectral + write_report 按 kind 分派；⑥strategy 分支对 sname=='spectral' 追加 extra_notes"
+  ],
+  "禁止触碰": [
+   "wheel.py",
+   "ml/popularity.py",
+   "select_numbers.py",
+   "ml/config.py（只读 BLUE_COLS/RED_COLS）",
+   "ml/eval/walk_forward.py（只读复用，签名零改动）",
+   "ml/data/*",
+   "ml/features/feature_engineer.py（CRLF，勿 patch）",
+   "ml/decode.py",
+   "ml/models/*",
+   "analysis/*",
+   "batch_predict_pg.py 等 PG 脚本"
+  ],
+  "交付纪律": "全部验证通过后再 git 提交（本次不提交）；并发 agent 可能同时改 evaluate.py，动手前 git status 确认，只认自己文件列表。",
+  "验收命令": [
+   ".venv/bin/python -m pytest tests/test_spectral.py -q",
+   ".venv/bin/python evaluate.py --spectral --out analysis/results/spectral_probe.json",
+   ".venv/bin/python evaluate.py --spectral --out analysis/results/spectral_probe.md",
+   ".venv/bin/python evaluate.py --strategy spectral --horizon 100 --out analysis/results/report_spectral.json",
+   ".venv/bin/python -m pytest tests/test_evaluate.py -q（回归，不追既有时钟脆弱性失败项）"
+  ]
+ },
+ "adrs": [
+  {
+   "decision": "主编码采用复平面单位圆 z=e^(2πi·x/16)，one-hot 作交叉验证层，数值映射 -1~1 不实现",
+   "context": "蓝球 1-16 是分类标签，号码数值无物理意义，直接数值 FFT 语义有瑕疵；需要一种保留循环对称、不引入假线性序的编码。",
+   "options": [
+    "复平面单位圆（单条复序列，m=N-1 个 bin 全用，功效高）",
+    "one-hot 16 条 0/1 指示逐条 FFT（编码最朴素但功效摊薄、多重比较面 16 倍）",
+    "数值映射 -1~1（实现最简单但人造线性序凭空造假峰）"
+   ],
+   "rationale": "复圆编码无假线性序但保留循环对称；bin k 对应『k 期旋转结构』有真实物理解释；谱峰相位可直接反推号码 x*（门3 复核的锚）；H0 下 E[z]=0 使复圆自相关与周期图零分布干净（CLT 良好，已实测校准）。",
+   "rejected": "one-hot 单独作主检：16 条序列每条期望出现仅 218 次，逐条 Fisher g 功效差且 16 倍多重比较；其定位降级为门3 复核层。数值映射：-1~1 把『1 与 16 相邻』编成『1 与 -1 相邻』，纯属人造结构，仅保留为编码伪影演示用例（文档说明，不写代码路径）。"
+  },
+  {
+   "decision": "Fisher's g 的精确 p 在『全段原始周期图』（m=N-1）上计算；Welch 平均谱降级为交叉核对层（峰位一致性 + 检测阈值解读）——修正草案『Welch 平均周期图 + Fisher's g』组合",
+   "context": "草案定 Welch 平均后做 Fisher's g。但 Fisher 精确 p 公式 p=Σ(-1)^(k-1)C(m,k)(1-kg)^(m-1) 的前提是 H0 下周期图纵坐标 iid 指数分布——仅原始周期图成立；Welch 平均后纵坐标为 Gamma(L,·) 且 50% 重叠窗口强相关，直接套公式是伪校准。",
+   "options": [
+    "全段原始周期图算精确 p（Welch 仅交叉核对）",
+    "Welch 平均谱上硬套 Fisher 公式",
+    "Welch 平均谱 + 蒙特卡洛经验 p"
+   ],
+   "rationale": "原始周期图方案有精确零分布且已实测校准（m=3487 MC：0.95 分位 g=0.003245 → 精确 p=0.0411，轻微保守方向安全）；零额外开销（单次 FFT ~7ms）；Welch 保留其价值：峰位稳定性（真信号原始谱/W=64/W=128 应同频，实测真实数据三者不一致 → 噪声特征）、0.2% 单峰方差检测阈值语义、峰/中位比可视化。",
+   "rejected": "Welch 硬套公式（分布前提被破坏，给出虚假精确 p）；MC 校准进生产路径（慢，仅测试用——test_fisher_g_pvalue_matches_mc_null 已承担校准职责）。"
+  },
+  {
+   "decision": "门1 自相关用『复圆自相关』|R(τ)|·√N（Bonferroni 20 lags），不用 one-hot 指示自相关",
+   "context": "草案『lag-1~20 自相关，SE≈1/√N，ρ≥0.03~0.05 可检』未指明统计量载体；one-hot 指示自相关看似最『无编码』。",
+   "options": [
+    "复圆自相关（单条复数序列，20 个 lag）",
+    "one-hot 指示自相关（16 号 × 20 lag = 320 测试 Bonferroni）",
+    "16×16 转移表卡方（每 lag 一个列联表独立性检验）"
+   ],
+   "rationale": "实测 1000 组随机序列：one-hot 指示自相关对稀有类(1/16)重尾严重——max|z| 95 分位 4.15（名义 ~3.8）、Bonferroni α=0.0127 下误报 6%（名义 1.3%），SE≈1/√N 失效（ρ̂ 分母对稀疏指示极度不稳）；复圆自相关 |R(τ)|·√N 的 99.9 分位 3.11 < 临界 3.42，误报 0/1000，SE=1/√N 精确成立；且与主检验同编码，检测口径自洽。",
+   "rejected": "one-hot 指示自相关作判定（校准失败，降级为报告附加诊断并注明重尾——若保留输出，z 统计量须按 Var≈(1/N)(1+p)/(1-p) 修正仍不够，实测尾重超出方差修正）；转移表卡方（可作未来替代，本次不做以控制 scope）。"
+  },
+  {
+   "decision": "检验器定位落地为『--spectral 独立探针模式为主 + spectral 策略兼容模式仅对照』",
+   "context": "检验器本身不预测；evaluate.py 是预测回测框架，STRATEGIES 全部是出注单的策略。",
+   "options": [
+    "仅独立 --spectral 模式",
+    "仅注册 spectral 策略走 walk-forward",
+    "双模式：--spectral 独立探针 + spectral 策略对照"
+   ],
+   "rationale": "独立模式承载三关检验与 spectral_probe 报告 schema（kind 区分，write_report 分派）；策略模式把『谱峰相位外推』做成 walk-forward 补充关——真周期结构应显著高于 1/16 基线，平坦则 ≈1/16，用既有显著性判定把『无预测力』变成证据，且零改动 walk_forward.py。",
+   "rejected": "仅独立模式（丢失 walk-forward 补充关与既有报告管线的复用）；仅策略模式（三关报告塞不进现有策略报告 schema，检验器价值被稀释）。"
+  },
+  {
+   "decision": "三关判定顺序 + 总体 FWER 控制在 α=0.05：Sidak 双门拆分（α_gate=0.0253）→ 门1 双子检验 Sidak（α_sub=0.0127）→ 自相关族内 Bonferroni（临界 z=3.42）→ 门3 条件检验 α=0.05",
+   "context": "三关串联的总体假阳性必须受控；门1 内含两个子检验、自相关含 20 个 lag，多重比较面大。",
+   "options": [
+    "每门各 α=0.05（实现最简）",
+    "Sidak 拆分 + 族内 Bonferroni（本方案）",
+    "全部单测试全局 Bonferroni（最保守）"
+   ],
+   "rationale": "实测：每门 0.05 时组合误报 9/100（超 5% 目标）；Sidak+Bonferroni 方案实测 4/100≈5%（NONSPECTRAL_BIAS≈1.7%、PEAK_ARTIFACT≈2.4%、PEAK_CONFIRMED≈0.13%，与理论分解吻合）。门3 仅条件触发，其假阳性贡献 ≈0.025×0.05 可忽略。verdict 优先级 PEAK_CONFIRMED > NONSPECTRAL_BIAS > PEAK_ARTIFACT > FLAT：真周期信号门1 在 lag=周期处必触发，若线性顺序会先判 NONSPECTRAL_BIAS 掩盖最强证据（实测 p_inject=0.3 需 20/20 PEAK_CONFIRMED 即该优先级的依据）。",
+   "rejected": "每门 0.05（9% 误报超限）；全局单测试 Bonferroni（320+2 个测试摊 0.05 → 临界 z≈4.4，检测力被砍，ρ≥0.03 的可检承诺落空）。"
+  },
+  {
+   "decision": "编码不变性测试矩阵：旋转/反射为理论不变（硬断言 |Δg|≤1e-9），任意标签重排不保证不变（记录漂移、不作断言），漂移信号由门3 one-hot 复核兜底",
+   "context": "复圆编码把号码摆在圆上的固定次序；任意重排会改变圆上相邻关系，可能把『单号偏多』这类非循环偏差扩散成谱结构——需要区分真实周期结构与编码伪影。",
+   "options": [
+    "旋转/反射/重排全部断言不变（对重排不成立）",
+    "旋转/反射硬断言 + 重排记录 + 门3 兜底（本方案）"
+   ],
+   "rationale": "旋转（x→x+c）只引入常数相位，反射（x→17-x）只镜像幅度谱，两者理论上功率谱不变（实测 1e-12 级）；重排无不变性承诺，其作用是指纹——permutation.g_shift/peak_bin_shift 进入报告，若门2 触发且重排后峰位移位，与门3 未确认共同构成 PEAK_ARTIFACT 证据。",
+   "rejected": "重排也硬断言（数学上不成立，会把真实数据误判为编码缺陷）；不做不变性测试（失去伪影指纹）。"
+  }
+ ],
+ "domain_model": {
+  "bounded_contexts": [
+   "ml/spectral.py：纯统计检验域——编码、周期图、Fisher's g、Welch、卡方、自相关、三关编排；零 IO 零框架依赖，可独立验证",
+   "evaluate.py：评测/报告域——数据加载（load_data + BLUE_COLS）、策略注册表、walk-forward 复用、CLI、JSON/MD 渲染",
+   "tests/test_spectral.py：验证域——校准、功效、误报率、不变性、真实数据冒烟、evaluate 集成"
+  ],
+  "aggregates": [
+   "ThreeGateResult（门1/门2/门3/不变性/rolling/verdict/conclusion 的不可变结果聚合，唯一事实来源）",
+   "SpectralReport（spectral_report_dict 序列化产物，报告 schema 与 ThreeGateResult 一一对应）"
+  ],
+  "events": [
+   "gate1_passed",
+   "gate2_peak_found(peak_bin, x*)",
+   "gate3_confirmed(x*)",
+   "verdict_emitted(FLAT|PEAK_CONFIRMED|PEAK_ARTIFACT|NONSPECTRAL_BIAS|INSUFFICIENT_DATA)"
+  ]
+ },
+ "risks": [
+  {
+   "risk": "多重比较假阳性：卡方+320 自相关+3487 bin Fisher g 的检验面大，单测 α=0.05 直接叠加会到 ~10%",
+   "mitigation": "Sidak 双门拆分 + 族内 Bonferroni + 门3 条件检验；蒙特卡洛实测组合误报 4/100≈5% 目标；tests/test_three_gate_random_fpr_mc 固化（100 组断言 ≤12 次误报）",
+   "likelihood": "low"
+  },
+  {
+   "risk": "编码伪影：复圆编码对标签重排/反射敏感，单号偏多类非循环偏差可能被编成假谱峰",
+   "mitigation": "门3 one-hot 复核（谱峰必须同频复现于对应号码指示谱，假峰 ~0.025×0.95 被拦）；不变性矩阵记录重排漂移指纹；Welch 峰位一致性（真信号三谱同频）；实测真实数据原始谱/W64/W128 峰位不一致即噪声特征",
+   "likelihood": "low"
+  },
+  {
+   "risk": "样本量边界：<500 期时所有检验检测力不足（只能检出 >15% 频率偏差）；窗口数随 W 增大而减少",
+   "mitigation": "MIN_N=500 硬边界返回 INSUFFICIENT_DATA 不判定；3488 期已测算各层可检效应量（卡方 >2%、ρ≥0.03、单峰 >0.2%）；W=64 主检（108 窗）、W=128 灵敏度（54 窗）",
+   "likelihood": "low"
+  },
+  {
+   "risk": "有限样本下精确 p 轻微保守：m=3487 时 0.95 分位处精确 p=0.0411 vs 名义 0.05（周期图纵坐标非严格指数）",
+   "mitigation": "方向为保守（少报峰、不误报），对『公平性证据』结论无碍；已在 fisher_g_pvalue 规格与测试中固化校准锚点，未来如需精确化可在门3 用 MC 校准复核",
+   "likelihood": "low"
+  },
+  {
+   "risk": "真实数据近阈值项被 Bonferroni 吞掉（如当前 one-hot 自相关 lag-13/号12 的 z=3.05，未过临界 3.94）——统计口径正确但信息呈现上可能漏掉值得人工看的苗头",
+   "mitigation": "报告保留『最接近阈值』明细（max_z 及对应 lag/号码、min_p、rolling.min_p 及其窗口位置），结论模板引导人工复核而非自动下结论",
+   "likelihood": "mid"
+  },
+  {
+   "risk": "误报处置缺失：verdict!=FLAT 时若无行动模板，可能被忽略或过度反应",
+   "mitigation": "conclusion 模板内置处置路径：PEAK_CONFIRMED→复核数据源/分段定位（rolling 窗口定位时段）/人工审查球重磨损等物理偏差；PEAK_ARTIFACT→记录编码敏感不作行动；NONSPECTRAL_BIAS→复核 1.csv 与中彩网源一致性",
+   "likelihood": "low"
+  },
+  {
+   "risk": "并发 agent 同时修改 evaluate.py 或统计实现细节偏离本规格（decimal 精度、bin 选取、α 拆分）",
+   "mitigation": "只改 evaluate.py（LF 可 patch）+2 个新文件；动手前 git status；验收命令含 tests/test_spectral.py 校准用例（fisher_g_pvalue 闭式锚点 + MC 校准 + FPR 上限），偏离即红",
+   "likelihood": "low"
+  }
+ ],
+ "confidence": 0.9,
+ "open_questions": [
+  "--spectral 是否纳入 cron 定期邮件推送（本次不做，按 Rocky 后续指令）；若纳入，报告走 no_agent 直发 SMTP（hermes-ops 约定）",
+  "报告 MD 是否附频谱图（matplotlib 未列入依赖清单确认，默认 JSON+MD 表格不落图；如需可视化另议）",
+  "one-hot 指示自相关是否默认输出为报告附加诊断字段（建议输出 report-only，测试只断言结构不断言显著性，避免重尾误报进入结论）"
+ ]
+}

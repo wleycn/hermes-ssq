@@ -1,0 +1,101 @@
+{
+  "kind": "spectral_probe",
+  "run_at": "2026-08-13 11:08:14",
+  "source": "ml/data/1.csv (Blue1)",
+  "n_periods": 3488,
+  "alpha": 0.05,
+  "alpha_split": {
+    "gate": 0.02532,
+    "sub": 0.01274,
+    "note": "Sidak 双门拆分；门1 双子检验再 Sidak；自相关族内 Bonferroni"
+  },
+  "gate1": {
+    "passed": true,
+    "chi2": {
+      "stat": 8.577981651376147,
+      "df": 15,
+      "p_value": 0.8985303436842927,
+      "significant": false
+    },
+    "autocorr": {
+      "max_lag": 20,
+      "max_z": 1.7794793943068266,
+      "max_z_lag": 10,
+      "critical_z": 3.415319335252987,
+      "significant": false
+    }
+  },
+  "gate2": {
+    "passed": true,
+    "fisher_g": {
+      "g": 0.002725449661691646,
+      "m": 3487,
+      "p_value": 0.22761682049669293,
+      "peak_bin": 1007,
+      "peak_freq": 0.28870412844036697,
+      "peak_phase_deg": 128.13486105345655,
+      "significant": false
+    },
+    "welch": [
+      {
+        "window": 64,
+        "noverlap": 32,
+        "n_windows": 108,
+        "peak_bin": 41,
+        "peak_freq": 0.640625,
+        "peak_ratio_median": 1.2107254263834817,
+        "peak_fraction": 0.01916278720031912
+      },
+      {
+        "window": 128,
+        "noverlap": 64,
+        "n_windows": 53,
+        "peak_bin": 7,
+        "peak_freq": 0.0546875,
+        "peak_ratio_median": 1.448158080394777,
+        "peak_fraction": 0.011385462774278281
+      }
+    ],
+    "peak_bin_agrees": false,
+    "unstable_peak": true
+  },
+  "gate3": {
+    "implicated_number": null,
+    "g": null,
+    "m": null,
+    "p_value": null,
+    "peak_bin": null,
+    "confirmed": false,
+    "note": null
+  },
+  "invariance": {
+    "rotation": {
+      "g_delta_max": 4.336808689942018e-19,
+      "stable": true
+    },
+    "reflection": {
+      "g_delta": 0.0,
+      "stable": true
+    },
+    "permutation": {
+      "g_shift": 0.0002553090989756762,
+      "peak_bin_shift": -821,
+      "stable": false
+    }
+  },
+  "rolling": {
+    "window": 64,
+    "step": 16,
+    "n_windows": 215,
+    "min_p": 0.0012183399788900527,
+    "frac_below_gate_alpha": 0.04186046511627907,
+    "note": "仅报告不决策（215 窗下 min_p 受多重比较支配）"
+  },
+  "verdict": "FLAT",
+  "conclusion": "3488 期蓝球序列未发现显著非随机结构：卡方均匀 p=0.8985、lag-1~20 复圆自相关 max|z|=1.779（临界 3.415）、复谱 Fisher's g p=0.2276、Welch 峰位稳定=False。统计证据支持摇奖机公平假设。",
+  "notes": [
+    "检验器不预测：本报告仅诊断蓝球序列随机性, 不构成下注建议",
+    "主编码=复平面单位圆 z=e^(2πi·x/16)；one-hot 仅作门3 交叉复核",
+    "Welch 平均谱仅作峰位交叉核对；Fisher's g 精确 p 在全段原始周期图上计算（ADR-002）"
+  ]
+}
