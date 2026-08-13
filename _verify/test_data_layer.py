@@ -114,10 +114,16 @@ def test_existing_production_rows_data_date_is_beijing(conn, schema):
             "WHERE data_date IS DISTINCT FROM run_at::date;"
         )
         mismatched = cur.fetchone()[0]
-        # 仅允许其它测试遗留的 DEFAULT(UTC) 兜底行；正常生产行均匹配
-        cur.execute("SELECT COUNT(*) FROM ssq.model_predictions WHERE data_date = CURRENT_DATE;")
-        utc_default_rows = cur.fetchone()[0]
-    assert mismatched == utc_default_rows
+        # 允许其它测试遗留的 DEFAULT 兜底行：data_date=北京今天 且与 run_at 不一致的行。
+        # 不能再用 CURRENT_DATE(UTC) 识别——北京 08:00-24:00 时段 UTC 与北京同日，
+        # 生产行(北京日期)会被误判为兜底行（0 != 245 缺陷根因）。
+        cur.execute(
+            "SELECT COUNT(*) FROM ssq.model_predictions "
+            "WHERE data_date = (now() AT TIME ZONE 'Asia/Shanghai')::date "
+            "  AND data_date IS DISTINCT FROM run_at::date;"
+        )
+        default_rows = cur.fetchone()[0]
+    assert mismatched == default_rows
 
 
 # --------------------------------------------------------------------------- #

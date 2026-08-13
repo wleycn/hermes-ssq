@@ -124,11 +124,17 @@ def ensure_model_predictions_data_date(conn: psycopg.Connection) -> None:
                 UPDATE ssq.model_predictions
                    SET data_date = run_at::date
                  WHERE data_date IS NULL;
-                ALTER TABLE ssq.model_predictions ALTER COLUMN data_date SET DEFAULT CURRENT_DATE;
+                ALTER TABLE ssq.model_predictions ALTER COLUMN data_date SET DEFAULT (now() AT TIME ZONE 'Asia/Shanghai')::date;
                 ALTER TABLE ssq.model_predictions ALTER COLUMN data_date SET NOT NULL;
             END IF;
         END $$;
         """)
+        # 幂等修正：列已存在时上面的 DO 块不执行，DEFAULT 可能仍是 UTC 的 CURRENT_DATE。
+        # 统一为北京日期语义（与 schema 注释约定一致），每次 ensure 都执行。
+        cur.execute(
+            "ALTER TABLE ssq.model_predictions "
+            "ALTER COLUMN data_date SET DEFAULT (now() AT TIME ZONE 'Asia/Shanghai')::date;"
+        )
         cur.execute(
             f"CREATE INDEX IF NOT EXISTS ix_model_predictions_data_date "
             f"ON {SCHEMA}.model_predictions (data_date);"
