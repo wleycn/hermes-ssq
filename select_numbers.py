@@ -13,6 +13,8 @@
 用法:
   .venv/bin/python select_numbers.py                 # 生成5组并打印
   .venv/bin/python select_numbers.py --groups 5 --seed 42
+  .venv/bin/python select_numbers.py --wheel         # 旋转矩阵覆盖模式(红球池 Top18)
+  .venv/bin/python select_numbers.py --wheel --pool-size 15 --max-notes 30 --no-popularity
 """
 from __future__ import annotations
 import argparse
@@ -26,6 +28,10 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import psycopg
+
+from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
+from ml.popularity import combo_popularity, sample_with_popularity
+from wheel import CoverResult, greedy_cover
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
@@ -67,8 +73,15 @@ def load_latest_probs(conn):
     return red_mean, blue_mean, run_at, models
 
 
-def _sample_red(red_prob, rng, temperature=0.6):
-    """按受控随机加权抽样6个不重复红球, 约束奇偶/大小比。"""
+def _sample_red(red_prob, rng, temperature=0.6, popularity_fn=None, lambda_=0.3):
+    """按受控随机加权抽样6个不重复红球, 约束奇偶/大小比。
+
+    popularity_fn 不为 None 时: 先按温度采样生成候选注, 再按流行度惩罚加权
+    重采样(偏向冷门组合); 为 None 走原逻辑(向后兼容, generate 默认路径不变)。
+    """
+    if popularity_fn is not None:
+        return sample_with_popularity(red_prob, rng, temperature=temperature,
+                                      lambda_=lambda_, popularity_fn=popularity_fn)
     for _ in range(200):
         p = np.power(red_prob, 1.0 / temperature)
         p = p / p.sum()
@@ -107,11 +120,107 @@ def generate(red_mean, blue_mean, groups=5, seed=42):
     return out
 
 
+def _popularity_off(reds):
+    """--no-popularity 时使用的流行度函数: 不计算流行度(返回 None)。"""
+    return None
+
+
+def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restarts=3,
+                        seed=42, popularity_fn=None, lambda_=0.3):
+    """旋转矩阵覆盖模式: 红球 Top-pool_size 概率池 -> 贪心覆盖 -> 每注配 1 个蓝球。
+
+    Args:
+        red_mean: 33 维红球集成概率。
+        blue_mean: 16 维蓝球集成概率。
+        pool_size: 概率 Top-N 红球池大小(6..33)。
+        max_notes / restarts / seed: 透传 wheel.greedy_cover。
+        popularity_fn: 每注流行度计算函数(reds -> float); None 时用默认
+            combo_popularity(规则版)。
+        lambda_: 流行度惩罚系数, 保留给惩罚加权路径(与 sample_with_popularity
+            同款参数); 默认路径不影响 combo_popularity 输出。
+
+    Returns:
+        {"tickets": [{"reds": [...], "blue": n, "popularity": float|None}, ...],
+         "coverage": {CoverResult 字段 + pool/pool_size}}
+    """
+    red_mean = np.asarray(red_mean, dtype=float)
+    blue_mean = np.asarray(blue_mean, dtype=float)
+    if len(red_mean) != 33 or len(blue_mean) != 16:
+        raise ValueError(f"red_mean 长度必须为33, blue_mean 必须为16, "
+                         f"实际 {len(red_mean)}/{len(blue_mean)}")
+    if not (6 <= pool_size <= 33):
+        raise ValueError(f"pool_size 必须在 6-33 之间, 实际 {pool_size}")
+    top = np.argsort(red_mean)[::-1][:pool_size]
+    pool = sorted((top + 1).tolist())
+    res: CoverResult = greedy_cover(pool, k=6, t=4, max_notes=max_notes,
+                                    restarts=restarts, seed=seed)
+    blue_rng = np.random.default_rng(seed + 1)
+    tickets = []
+    for reds in res.tickets:
+        blue = _sample_blue(blue_mean, blue_rng, temperature=0.7)
+        popularity = popularity_fn(reds) if popularity_fn is not None \
+            else combo_popularity(reds)
+        tickets.append({"reds": reds, "blue": blue, "popularity": popularity})
+    coverage = {
+        "n_notes": res.n_notes,
+        "covered_4subsets": res.covered_4subsets,
+        "total_4subsets": res.total_4subsets,
+        "four_subset_coverage": res.four_subset_coverage,
+        "pass_rate": res.pass_rate,
+        "pass_rate_sampled": res.pass_rate_sampled,
+        "converged": res.converged,
+        "max_notes": res.max_notes,
+        "pool": pool,
+        "pool_size": len(pool),
+    }
+    return {"tickets": tickets, "coverage": coverage}
+
+
+def _run_wheel(red_mean, blue_mean, args, run_at):
+    """--wheel 模式: 生成并打印覆盖注单 + 覆盖率报告。"""
+    pop_fn = _popularity_off if args.no_popularity else None
+    result = build_wheel_tickets(red_mean, blue_mean, pool_size=args.pool_size,
+                                 max_notes=args.max_notes, restarts=3, seed=args.seed,
+                                 popularity_fn=pop_fn, lambda_=args.popularity_lambda)
+    cov = result["coverage"]
+    if args.json:
+        print(json.dumps({"run_at": str(run_at), "mode": "wheel", **result},
+                         ensure_ascii=False, indent=2))
+        return
+    print(f"模型集成预测 ({run_at}) | 旋转矩阵覆盖模式: 红球池 Top-{cov['pool_size']}")
+    print("=" * 56)
+    for i, t in enumerate(result["tickets"], 1):
+        pop = t["popularity"]
+        pop_s = f"{pop:.3f}" if isinstance(pop, float) else "—"
+        print(f"注{i:02d}: 红球 {t['reds']} + 蓝球 {t['blue']:02d} | 流行度 {pop_s}")
+    print("=" * 56)
+    pr_s = f"{cov['pass_rate'] * 100:.2f}%"
+    if cov["pass_rate_sampled"] is not None:
+        pr_s += " (抽样±0.35%)"
+    else:
+        pr_s += " (精确)"
+    print(f"[覆盖报告] 4-子集覆盖率: {cov['covered_4subsets']}/{cov['total_4subsets']} "
+          f"= {cov['four_subset_coverage'] * 100:.2f}%")
+    print(f"[覆盖报告] 6-子集通过率: {pr_s} | 注数 {cov['n_notes']}/{cov['max_notes']} "
+          f"| 收敛: {cov['converged']} | 池大小: {cov['pool_size']}")
+    print("注: 覆盖设计为概率性保证(6-子集通过率≥99% 阈值在池≤16/25注可达), 仅供娱乐参考")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--groups", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--json", action="store_true", help="输出 JSON")
+    ap.add_argument("--wheel", action="store_true",
+                    help="旋转矩阵覆盖模式(概率性保证, 覆盖 Top-N 概率池)")
+    ap.add_argument("--pool-size", type=int, default=WHEEL_CONFIG.get("pool_size", 18),
+                    help="红球概率池大小(6..33)")
+    ap.add_argument("--max-notes", type=int, default=WHEEL_CONFIG.get("max_notes", 30),
+                    help="旋转矩阵最大注数")
+    ap.add_argument("--no-popularity", action="store_true", help="关闭流行度惩罚")
+    ap.add_argument("--popularity-lambda", type=float,
+                    default=POPULARITY_CONFIG.get("lambda", 0.3),
+                    help="流行度惩罚系数 λ")
     args = ap.parse_args()
 
     conn = psycopg.connect(**PG)
@@ -119,6 +228,10 @@ def main():
         red_mean, blue_mean, run_at, _ = load_latest_probs(conn)
     finally:
         conn.close()
+
+    if args.wheel:
+        _run_wheel(red_mean, blue_mean, args, run_at)
+        return
 
     groups = generate(red_mean, blue_mean, args.groups, args.seed)
 

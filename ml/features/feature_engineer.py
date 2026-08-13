@@ -911,6 +911,28 @@ class FeatureEngineer:
 
         return result.dropna().reset_index(drop=True)
 
+    def calc_ac_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """AC 值特征：每期 6 个红球两两差绝对值去重数 - 5。
+
+        AC 值衡量号码分散度，范围 0~10，越分散越大：
+          [1,2,3,4,5,6]    -> 两两差 {1,2,3,4,5} 去重 5 个 - 5 = 0
+          [1,7,13,19,25,31] -> 两两差 15 个全部不同 = 15 - 5 = 10
+
+        Args:
+            df: 原始数据DataFrame (包含红球列)
+
+        Returns:
+            添加了 AC_Value 列(float)的DataFrame
+        """
+        result = df.copy()
+        red_data = result[self.red_cols].values.astype(int)
+        ac = np.zeros(len(result), dtype=np.float64)
+        for i, row in enumerate(red_data):
+            diffs = {abs(int(a) - int(b)) for j, a in enumerate(row) for b in row[j + 1:]}
+            ac[i] = len(diffs) - 5
+        result["AC_Value"] = ac
+        return result
+
     # 严格去冗余/去泄漏的统一特征白名单（compact 模式）。
     # 注意：Next_*（shift(-1) 未来标签）、Last_Draw_*（shift(1) 上期 one-hot）、
     # LLN_Deviation_*（与 Last_Appear/LLN_Abs 共线）等均剔除，避免信息泄漏与共线。
@@ -936,13 +958,17 @@ class FeatureEngineer:
         "LLN_Abs_Deviation_Mean",
     ]
 
-    def build_unified_features(self, df: pd.DataFrame, mode: str = "compact") -> pd.DataFrame:
+    def build_unified_features(self, df: pd.DataFrame, mode: str = "compact",
+                               keep_override: Optional[List[str]] = None) -> pd.DataFrame:
         """统一特征入口：所有模型共用，避免 RF/LGBM 与 LSTM/CNN 特征空间不一致。
 
         Args:
             df: 原始数据(含 Red1..Red6, Blue1 等列)
             mode: "full" 返回 compute_all_features 全部列(含冗余,仅供调试)；
                   "compact" 返回去冗余/去泄漏白名单列(默认,生产用)。
+            keep_override: 可选追加白名单列列表(在 UNIFIED_KEEP 基础上追加)。
+                  feature 开关(如 AC_Value)开启时由调用方传入对应列名；
+                  为 None 时行为与旧版完全一致(向后兼容)。
 
         Returns:
             清洗后的特征 DataFrame（drop 掉含 NaN 的行），列顺序固定。
@@ -951,6 +977,12 @@ class FeatureEngineer:
         if mode == "full":
             return full.dropna().reset_index(drop=True)
         keep = [c for c in self.UNIFIED_KEEP if c in full.columns]
+        if keep_override:
+            missing = [c for c in keep_override if c not in full.columns]
+            # AC_Value 由 calc_ac_features 按需生成(默认管线不含该列, 由特征开关驱动)
+            if "AC_Value" in missing:
+                full = self.calc_ac_features(full)
+            keep += [c for c in keep_override if c not in keep and c in full.columns]
         miss = [c for c in self.UNIFIED_KEEP if c not in full.columns]
         if miss:
             print(f"  [警告] 白名单缺失列(已跳过): {miss}")

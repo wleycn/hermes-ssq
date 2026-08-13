@@ -12,10 +12,20 @@ import pandas as pd
 from ml.data import load_data
 from ml.config import RED_COLS, BLUE_COLS
 
+# 红球随机选 6 号的理论期望重叠 = 6*6/33 ≈ 1.0909（超几何分布均值）
+RED_RANDOM_EXPECT = 6 * 6 / 33.0
+# 蓝球随机命中率理论值 = 1/16（每期独立）
+BLUE_RANDOM_EXPECT = 1 / 16.0
+
 
 def set_overlap(true_reds: List[int], pred_reds: List[int]) -> int:
     """红球集合命中的号码个数 (0..6)。"""
     return len(set(true_reds) & set(pred_reds))
+
+
+def blue_random_baseline() -> float:
+    """蓝球随机基线：每期独立 1/16。"""
+    return BLUE_RANDOM_EXPECT
 
 
 def random_red_baseline(n_trials: int = 2000, seed: int = 0) -> float:
@@ -105,16 +115,37 @@ def freq_red_baseline_overlap(df: pd.DataFrame, start: int, end: int,
     return float(np.mean(ovs)) if ovs else 0.0
 
 
-def random_red_overlap_actual(df: pd.DataFrame, start: int, end: int,
-                              n_trials: int = 50, seed: int = 1) -> float:
-    """随机基线：每期随机选 6 号，与真实开奖重叠，取多次平均。"""
+def random_red_overlap_period(df: pd.DataFrame, start: int, end: int,
+                              n_trials: int = 1000, seed: int = 1) -> np.ndarray:
+    """随机基线(数组版)：每期 MC 抽 n_trials 次随机 6 号，返回每期平均重叠数组。
+
+    Args:
+        df: 全量数据(含 Red1..Red6)。
+        start: 起始期索引(含)。
+        end: 结束期索引(含)。
+        n_trials: 每期蒙特卡洛抽样次数(默认 1000, 与 random_red_overlap_actual 统一 N)。
+        seed: 随机种子。
+
+    Returns:
+        np.ndarray，长度 = 实际外推期数，元素 = 该期 n_trials 次随机注单的平均重叠。
+    """
     rng = np.random.default_rng(seed)
     ovs = []
     for t in range(start, min(end + 1, len(df))):
-        true = df.iloc[t][RED_COLS].astype(int).tolist()
+        true = set(df.iloc[t][RED_COLS].astype(int).tolist())
         s = 0.0
         for _ in range(n_trials):
             pick = rng.choice(range(1, 34), size=6, replace=False).tolist()
-            s += len(set(pick) & set(true))
+            s += len(set(pick) & true)
         ovs.append(s / n_trials)
-    return float(np.mean(ovs))
+    return np.asarray(ovs, dtype=np.float64)
+
+
+def random_red_overlap_actual(df: pd.DataFrame, start: int, end: int,
+                              n_trials: int = 1000, seed: int = 1) -> float:
+    """随机基线：每期随机选 6 号，与真实开奖重叠，取多次平均(返回单均值)。
+
+    默认 n_trials=1000（与 evaluate 蒙特卡洛基线统一 N）；旧调用方按位置传参不受影响。
+    """
+    arr = random_red_overlap_period(df, start, end, n_trials=n_trials, seed=seed)
+    return float(np.mean(arr)) if len(arr) else 0.0

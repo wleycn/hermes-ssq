@@ -32,3 +32,9 @@ ml/logs/
 
 # Trae IDE 自动生成
 .trae/
+
+# 冒烟/临时评测报告(可复现, 不入库)
+analysis/results/report_smoke.*
+analysis/results/feature_validation_smoke.json
+analysis/results/report_entropy.md
+analysis/results/report_spectral_strategy.*

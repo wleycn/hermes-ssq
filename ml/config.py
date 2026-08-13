@@ -202,3 +202,29 @@ def get_model_config(model_type: str) -> dict:
         ModelType.CNN_MATH: CNN_CONFIG["cnn_math"],
     }
     return config_map.get(model_type, {})
+
+
+# ================= 旋转矩阵覆盖(Wheel)配置 =================
+WHEEL_CONFIG = {
+    "k": 6,            # 每注红球数
+    "t": 4,            # 覆盖子集大小(6-子集通过 = 任一 4-子集被覆盖)
+    "max_notes": 30,   # 最大注数
+    "restarts": 3,     # 贪心重启次数(按 pass_rate 取最优)
+    "pool_size": 18,   # 概率 Top-N 红球池
+}
+
+# ================= 冷门组合加权(Popularity)配置 =================
+POPULARITY_CONFIG = {
+    "enabled": True,          # 是否启用流行度惩罚
+    "lambda": 0.3,            # 流行度惩罚系数 λ
+    "n_candidates": 200,      # 加权采样候选注数
+    "temperature": 0.6,       # 温度采样温度
+    "weights": {
+        "consecutive_pairs": 1.0,        # 连号对数
+        "arithmetic_progressions": 1.5,  # 等差序列
+        "birthday_ratio": 0.8,           # 生日号占比
+        "all_same_parity": 2.0,          # 全奇/全偶
+        "same_tail_pairs": 0.8,          # 同尾对数
+        "lucky_taboo": 1.2,              # 忌4喜6/8/9
+    },
+}
