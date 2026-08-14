@@ -38,8 +38,25 @@ SCHEMA = "ssq"
 MODELS = ["lstm_blue", "lstm_reds", "lstm_all", "cnn_math"]
 
 
-def load_latest_probs(conn):
-    """读取最新一次 run 的各模型概率, 返回 (red_mean[33], blue_mean[16], run_at, models)。"""
+def load_latest_probs(conn, method: str = "mean", tau: float = 8000.0):
+    """读取最新一次 run 的各模型概率, 返回 (red_mean[33], blue_mean[16], run_at, models)。
+
+    Args:
+        conn: psycopg 连接。
+        method: 多模型融合方式。'mean'=等权均值(默认, 向后兼容);
+                'ebma'=按历史开奖对数似然 softmax 加权(详见 ml.ensemble)。
+        tau: EBMA 温度(仅 method='ebma' 时生效)。默认 8000.0。
+
+        重要诚实声明: 双色球为独立均匀随机过程, 各模型的"历史表现差异"
+        主要是抽样噪声的累积放大(实测红球 6 模型 3489 期累计 log-likelihood
+        极差约 7900 nat), 并非真预测技能。因此:
+          - tau 过小(如 50)会让 softmax 把噪声当信号, 权重坍缩到单一模型;
+          - tau 调大到 ~8000 才使权重接近等权(这是更诚实的默认, 不假装某模型更优);
+          - EBMA 模式本质是"模型差异诊断探针", 不代表集成预测更准。
+        数学上任何融合都无法提升随机过程的命中率。
+    """
+    from ml.ensemble import integrate_redblue  # 延迟导入避免循环依赖
+
     with conn.cursor() as cur:
         cur.execute(f"""
             SELECT run_at FROM {SCHEMA}.model_predictions
@@ -63,13 +80,20 @@ def load_latest_probs(conn):
             elif btype == "blue":
                 blue[model][num - 1] = prob
     models = list(red.keys())
-    # 集成: 对红/蓝分别按"有该侧数据的模型"求均值(部分输出模型只贡献一侧)
-    red_models = [m for m in models if red[m].sum() > 0]
-    blue_models = [m for m in models if blue[m].sum() > 0]
+    # 仅保留该侧有数据的模型
+    red_models = {m: red[m] for m in models if red[m].sum() > 0}
+    blue_models = {m: blue[m] for m in models if blue[m].sum() > 0}
     if not red_models or not blue_models:
-        raise RuntimeError(f"集成失败: 红球模型={red_models} 蓝球模型={blue_models}")
-    red_mean = np.stack([red[m] for m in red_models]).mean(axis=0)
-    blue_mean = np.stack([blue[m] for m in blue_models]).mean(axis=0)
+        raise RuntimeError(f"集成失败: 红球模型={list(red_models)} 蓝球模型={list(blue_models)}")
+
+    if method == "mean":
+        red_mean = np.stack(list(red_models.values())).mean(axis=0)
+        blue_mean = np.stack(list(blue_models.values())).mean(axis=0)
+    elif method == "ebma":
+        red_mean, blue_mean, _rw, _bw = integrate_redblue(
+            red_models, blue_models, method="ebma", tau=tau)
+    else:
+        raise ValueError(f"未知 method={method}")
     return red_mean, blue_mean, run_at, models
 
 
@@ -221,11 +245,17 @@ def main():
     ap.add_argument("--popularity-lambda", type=float,
                     default=POPULARITY_CONFIG.get("lambda", 0.3),
                     help="流行度惩罚系数 λ")
+    ap.add_argument("--ensemble", choices=["mean", "ebma"], default="mean",
+                    help="多模型融合方式: mean=等权(默认) | ebma=历史对数似然加权")
+    ap.add_argument("--ensemble-tau", type=float, default=8000.0,
+                    help="EBMA 温度(仅 --ensemble ebma 生效): 随机过程上模型差异是噪声,"
+                         "tau~8000 接近等权, 过小则坍缩到单一模型")
     args = ap.parse_args()
 
     conn = psycopg.connect(**PG)
     try:
-        red_mean, blue_mean, run_at, _ = load_latest_probs(conn)
+        red_mean, blue_mean, run_at, _ = load_latest_probs(
+            conn, method=args.ensemble, tau=args.ensemble_tau)
     finally:
         conn.close()
 

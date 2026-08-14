@@ -40,6 +40,60 @@ from ml.config import (
 )
 
 
+def markov_chi_square_test(series: np.ndarray, states: int = 7, alpha: float = 0.05):
+    """卡方马氏性检验: 序列是否可用一阶马尔可夫链建模。
+
+    原理解释(阿里云 264900 方法论): 若序列是纯随机(无记忆), 则状态 i 的
+    下一个状态分布应与"全样本状态频率"一致。构造列联表:
+      行 = 当前状态 i, 列 = 下一状态 j, 单元格 = 实际转移计数 n_ij;
+      期望单元格 = row_total_i * col_total_j / grand_total。
+    卡方统计量 = Σ (n_ij - E_ij)^2 / E_ij, 自由度 = (states-1)^2。
+    p < alpha -> 拒绝"独立/无记忆"原假设 -> 序列具马氏性(可用马尔可夫)。
+    p >= alpha -> 不拒绝原假设 -> 序列近似无记忆 -> 用马尔可夫预测无意义。
+
+    对双色球这类强随机序列, 预期 p 值偏高(不通过), 正好用数据说话。
+
+    Args:
+        series: 离散状态序列(如每期奇偶比 0..6)。
+        states: 状态数。
+        alpha: 显著性水平。
+
+    Returns:
+        (chi2_stat, p_value, is_markov) 元组。is_markov=True 表示通过检验
+        (存在马氏性, 马尔可夫特征可用)。
+    """
+    from scipy.stats import chi2
+
+    seq = np.asarray(series, dtype=int)
+    seq = seq[~np.isnan(seq)]
+    if len(seq) < states * 2:
+        # 样本不足, 无法可靠检验 -> 保守判定无效
+        return 0.0, 1.0, False
+
+    # 列联表 n_ij: 从 i 转移到 j 的计数
+    n = np.zeros((states, states), dtype=float)
+    for i in range(1, len(seq)):
+        a, b = seq[i - 1], seq[i]
+        if 0 <= a < states and 0 <= b < states:
+            n[a, b] += 1
+
+    row_tot = n.sum(axis=1)
+    col_tot = n.sum(axis=0)
+    grand = n.sum()
+    if grand == 0 or np.any(row_tot == 0) or np.any(col_tot == 0):
+        return 0.0, 1.0, False
+
+    # 期望计数(独立假设下)
+    e = np.outer(row_tot, col_tot) / grand
+    # 仅对 E_ij > 0 的单元格累加(避免除零)
+    mask = e > 0
+    chi2_stat = float(np.sum((n[mask] - e[mask]) ** 2 / e[mask]))
+    dof = (states - 1) ** 2
+    p_value = float(chi2.sf(chi2_stat, dof))
+    is_markov = bool(p_value < alpha)
+    return chi2_stat, p_value, is_markov
+
+
 class FeatureEngineer:
     """特征工程统一接口
 
@@ -390,17 +444,24 @@ class FeatureEngineer:
     def calc_markov_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """马尔可夫链特征：奇偶比的转移概率
 
+        马氏性闸门(Rocky 指示 2026-08-13, 源自阿里云 264900 方法论):
+        先对奇偶比序列做卡方马氏性检验, 若不通过(α=0.05)则标记 markov_valid=False,
+        下游应据此降级/弃用该特征, 防止对强随机序列硬套马尔可夫产生虚假信心。
+
         Args:
             df: 原始数据DataFrame (包含红球列)
 
         Returns:
-            添加了 Markov_Prob_{state} 列的DataFrame
+            添加了 Markov_Prob_{state} 列 + markov_valid/markov_chi2_p 列的DataFrame
         """
         result = df.copy()
         result["Odd_Count"] = (result[self.red_cols] % 2 == 1).sum(axis=1).astype(np.int32)
 
         states = 7
         odd_vals = result["Odd_Count"].values
+
+        # 模块级工具: 卡方马氏性检验(返回 p 值与是否通过)
+        chi2_stat, chi2_p, is_markov = markov_chi_square_test(odd_vals, states)
 
         transition_matrix = np.zeros((states, states), dtype=np.float32)
         for i in range(1, len(result)):
@@ -413,6 +474,9 @@ class FeatureEngineer:
         for state in range(states):
             result[f"Markov_Prob_{state}"] = transition_prob[odd_vals, state]
 
+        # 闸门信号: 下游(模型训练/特征选择)按此列决定是否采纳马尔可夫特征
+        result["markov_valid"] = bool(is_markov)
+        result["markov_chi2_p"] = float(chi2_p)
         return result
 
     def calc_hot_cold_features(
