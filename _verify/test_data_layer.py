@@ -17,7 +17,7 @@ import pytest
 
 SSQ = Path("/home/hermes/workspace/python/SSQ")
 CSV = SSQ / "ml/data/1.csv"
-EXPECTED_ROWS = 3488
+EXPECTED_ROWS = 3489
 
 
 def _load(name: str, path: Path):
@@ -69,7 +69,7 @@ def test_import_draw_history_edges(conn, schema):
         )
         last = cur.fetchone()
     assert first == ("2003001", date(2003, 2, 23))
-    assert last == ("2026092", date(2026, 8, 11))
+    assert last == ("2026093", date(2026, 8, 13))
 
 
 # --------------------------------------------------------------------------- #
