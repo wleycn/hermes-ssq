@@ -64,40 +64,43 @@ def test_run_one_both(BPP, monkeypatch):
 
 
 def test_load_latest_probs_partial_mean(BPP, SN):
-    """部分模型只贡献一侧时, 均值应按有数据侧计算(不引入 None)。"""
+    """部分模型只贡献一侧时, 均值应按有数据侧计算(不引入 None)。
+
+    隔离: 事务内清空 model_predictions(仅预测结果, 可重建), 插入测试数据,
+    同连接读未提交数据断言, 最后 rollback 不污染真实 6 模型。
+    """
     import psycopg
     from datetime import datetime
     conn = psycopg.connect(host="127.0.0.1", port=5432, user="hermes",
                            password="hermes123", dbname="hermes")
-    run_at = None
     try:
         BPP.ensure_schema(conn)  # ensure_schema 在 batch_predict_pg 中
-        run_at = datetime.now()
         with conn.cursor() as cur:
-            # lstm_blue 仅蓝, rf 红蓝全量
+            cur.execute(f"DELETE FROM {SN.SCHEMA}.model_predictions")  # 隔离真实数据
+        run_at = datetime(2099, 1, 1)
+        with conn.cursor() as cur:
+            # t_rf 红蓝全量, t_lstm_blue 仅蓝
             for i in range(1, 34):
                 cur.execute(
                     f"INSERT INTO {SN.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
-                    "VALUES (%s,'rf','red',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    "VALUES (%s,'t_rf','red',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
                     (run_at, i, 1.0 / 33))
             for i in range(1, 17):
                 cur.execute(
                     f"INSERT INTO {SN.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
-                    "VALUES (%s,'rf','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    "VALUES (%s,'t_rf','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
                     (run_at, i, 1.0 / 16))
                 cur.execute(
                     f"INSERT INTO {SN.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
-                    "VALUES (%s,'lstm_blue','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    "VALUES (%s,'t_lstm_blue','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
                     (run_at, i, 2.0 / 16))  # 蓝球第二模型给更高概率
-        conn.commit()
+        # 不 commit, 同连接读未提交
         red_mean, blue_mean, _, models = SN.load_latest_probs(conn)
         assert red_mean.shape == (33,) and blue_mean.shape == (16,)
-        # 蓝球应综合 rf(1/16) 与 lstm_blue(2/16) -> 均值 1.5/16
+        # 蓝球应综合 t_rf(1/16) 与 t_lstm_blue(2/16) -> 均值 1.5/16
         assert abs(blue_mean[0] - 1.5 / 16) < 1e-9
-        # 红球仅 rf 贡献 -> 1/33
+        # 红球仅 t_rf 贡献 -> 1/33
         assert abs(red_mean[0] - 1.0 / 33) < 1e-9
     finally:
-        with conn.cursor() as cur:
-            cur.execute(f"DELETE FROM {SN.SCHEMA}.model_predictions WHERE run_at=%s", (run_at,))
-        conn.commit()
+        conn.rollback()  # 回滚, 不污染真实 model_predictions
         conn.close()

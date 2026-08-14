@@ -39,31 +39,48 @@ def test_pg_insert_roundtrip(mod):
         conn = __import__("psycopg").connect(**PG)
         mod.ensure_schema(conn)
         from datetime import datetime
-        run_at = datetime.now()
+        run_at = datetime(2099, 1, 1)  # 未来时间, 确保 '每模型取最新' 只取到本测试数据
         with conn.cursor() as cur:
             for i in range(1, 34):
                 cur.execute(
                     f"INSERT INTO {mod.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
                     "VALUES (%s,%s,'red',%s,%s) "
                     "ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
-                    (run_at, "test_rf", i, 1.0 / 33))
+                    (run_at, "t_rf", i, 1.0 / 33))
             for i in range(1, 17):
                 cur.execute(
                     f"INSERT INTO {mod.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
                     "VALUES (%s,%s,'blue',%s,%s) "
                     "ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
-                    (run_at, "test_rf", i, 1.0 / 16))
+                    (run_at, "t_rf", i, 1.0 / 16))
         conn.commit()
+        # 注意: load_latest_probs 取 '每模型最新', 真实库已有 6 模型会混入。
+        # 为隔离, 事务内先清空 model_predictions(仅预测结果, 可重建), 再插测试数据, 断言后 rollback。
+        with conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {mod.SCHEMA}.model_predictions")
+        with conn.cursor() as cur:
+            for i in range(1, 34):
+                cur.execute(
+                    f"INSERT INTO {mod.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
+                    "VALUES (%s,%s,'red',%s,%s) "
+                    "ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    (run_at, "t_rf", i, 1.0 / 33))
+            for i in range(1, 17):
+                cur.execute(
+                    f"INSERT INTO {mod.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
+                    "VALUES (%s,%s,'blue',%s,%s) "
+                    "ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    (run_at, "t_rf", i, 1.0 / 16))
+        # 不 commit, 同连接可读到未提交数据(事务隔离), 避免污染真实 6 模型
         red, blue, _, models = sn.load_latest_probs(conn)
         assert red.shape == (33,) and blue.shape == (16,)
+        # t_rf 是事务内唯一模型, 概率和应为 1.0
         assert abs(red.sum() - 1.0) < 1e-6 and abs(blue.sum() - 1.0) < 1e-6
-        assert "test_rf" in models
+        assert "t_rf" in models
     finally:
         if conn:
             try:
-                with conn.cursor() as cur:
-                    cur.execute(f"DELETE FROM {mod.SCHEMA}.model_predictions WHERE model=%s", ("test_rf",))
-                conn.commit()
+                conn.rollback()  # 回滚, 不污染真实 model_predictions
             except Exception:
                 pass
             conn.close()
