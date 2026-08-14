@@ -58,18 +58,15 @@ def load_latest_probs(conn, method: str = "mean", tau: float = 8000.0):
     from ml.ensemble import integrate_redblue  # 延迟导入避免循环依赖
 
     with conn.cursor() as cur:
-        cur.execute(f"""
-            SELECT run_at FROM {SCHEMA}.model_predictions
-            ORDER BY run_at DESC LIMIT 1
-        """)
-        row = cur.fetchone()
-        if not row:
-            raise RuntimeError("PG 中无预测数据, 请先运行 batch_predict_pg.py")
-        run_at = row[0]
+        # 每模型每球种独立取最新 run_at(避免"必须一次跑完所有模型共享 run_at"的耦合)
         cur.execute(f"""
             SELECT model, ball_type, num, prob FROM {SCHEMA}.model_predictions
-            WHERE run_at = %s ORDER BY model, ball_type, num
-        """, (run_at,))
+            WHERE (model, ball_type, run_at) IN (
+                SELECT model, ball_type, MAX(run_at)
+                FROM {SCHEMA}.model_predictions GROUP BY model, ball_type
+            )
+            ORDER BY model, ball_type, num
+        """)
         red = {}
         blue = {}
         for model, btype, num, prob in cur.fetchall():
@@ -79,6 +76,8 @@ def load_latest_probs(conn, method: str = "mean", tau: float = 8000.0):
                 red[model][num - 1] = prob
             elif btype == "blue":
                 blue[model][num - 1] = prob
+    # run_at 不再单一(各模型独立), 用各模型最新 run_at 的集合表示
+    run_at = "per-model-latest"
     models = list(red.keys())
     # 仅保留该侧有数据的模型
     red_models = {m: red[m] for m in models if red[m].sum() > 0}

@@ -72,7 +72,7 @@ def run_train(mt, df, retrain=True, col=None):
         tc = RED_COLS + BLUE_COLS; rt = m.config.get("regression_targets", ["Next_Sum","Next_OddRatio","Next_BigRatio","Next_Hot_Count","Next_Cold_Count","Next_Max_Omission","Next_Avg_Omission"])
         if not all(c in dfe.columns for c in rt): dfe = fe.generate_regression_targets(dfe)
         yc = np.array([[r-(i+1) for i,r in enumerate(row[:6])] + [row[6]-1] for row in dfe[tc].values])
-        yr = dfe[rt].values; fm = dfe[extract_feature_columns(dfe)].values
+        yr = dfe[rt].values; fm = dfe[extract_feature_columns(dfe)].values.astype(np.float32)
         X, yc, yr = m.prepare_data(fm, yc, yr)
         X, _, yc, _, yr, _ = train_test_split(X, yc, yr, test_size=0.2, random_state=42)
     
