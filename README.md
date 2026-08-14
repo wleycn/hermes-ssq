@@ -3,6 +3,8 @@
 基于机器学习与深度学习的双色球彩票号码预测系统。通过分析历史开奖数据，使用多种模型（随机森林、LightGBM、LSTM、CNN）预测下一期可能出现的号码及其概率，并将各模型概率集成后生成候选号码、通过邮件推送。
 
 > ⚠️ 本系统仅供技术学习与研究，彩票中奖为随机事件，预测结果不构成任何投注建议。
+>
+> 🔬 **诚实结论（历史回测坐实）**：双色球为独立均匀随机过程，任何选号策略的期望收益 < 成本。wheel 30 注 ROI 历史回测约 **-70% ~ -75%**（长期必亏）。本系统的价值是"统计严谨 + 诚实检验 + 自动化流程"，不是"能赚钱"。
 
 ## 项目结构
 
@@ -16,14 +18,22 @@ SSQ/
 ├── batch_predict_pg.py           # 批量训练 6 模型 → 概率写入 PostgreSQL
 ├── pg_schema.py                  # PG 建表 + 1.csv 导入 draw_history + data_date 列迁移
 ├── cleanup_predictions.py        # 预测表 30 天滚动清理（仅动了 model_predictions）
-├── select_numbers.py             # 读 PG 集成概率 → 生成 5 组候选号码
-├── send_ssq_picks.py             # 组装中文邮件正文 → smtplib 直发 wleycn@163.com
-├── _verify/                      # pytest 验证套件（27 passed）
+├── select_numbers.py             # 读 PG 集成概率 → 生成 5 组候选号码（等权/EBMA 集成）
+├── send_ssq_picks.py             # 组装中文邮件正文 → smtplib 直发（旧入口，保留）
+├── retrain_pipeline.py           # 一键重训+验证+发邮件（封装 batch_predict_pg + 外部脚本）
+├── wheel.py                      # 旋转矩阵覆盖设计（贪心 4-子集覆盖）
+├── _verify/                      # pytest 验证套件
 ├── analysis/                     # 历史分析与探索脚本
+│   ├── wheel_ledger.py           # wheel ROI 模拟账本（口径 B+C 实跑）
+│   └── pool_compare_backtest.py  # ML池 vs 随机池 + wheel 历史回测对比
 └── ml/                           # 源代码
     ├── __init__.py
     ├── main.py                   # 模型训练+预测入口（单模型）
     ├── config.py                 # 全局配置（路径、超参数、模型类型）
+    ├── ensemble.py               # EBMA 轻量融合模块（零依赖，softmax of 历史 log-likelihood）
+    ├── popularity.py             # 冷号加权（6 规则, λ=0.3, 5 组模式用）
+    ├── spectral.py               # 蓝球 3 门随机性测试器（21 个函数）
+    ├── spectral_red.py           # 红球 3 路径随机性测试器
     ├── data/
     │   ├── dataset.py            # 数据加载与预处理
     │   ├── spider.py             # 历史数据爬虫（东方财富网，备用）
@@ -32,7 +42,7 @@ SSQ/
     ├── features/feature_engineer.py  # 特征工程（统计/频率/熵/马尔可夫等）
     ├── models/                   # 模型实现（rf/lgbm/lstm/cnn）
     ├── utils/helpers.py          # 通用工具函数
-    ├── data/1.csv                # 原始数据（3488 期开奖记录，CRLF）
+    ├── data/1.csv                # 原始数据（3489 期开奖记录，CRLF）
     ├── saved_models/             # 训练好的模型文件（不入版本控制）
     ├── outputs/                  # 预测结果 CSV（不入版本控制）
     └── legacy/                   # 早期探索代码（已归档，不参与生产）
@@ -72,19 +82,29 @@ pip install -r requirements.txt
 ## 核心流程
 
 ```
-1.csv (3488期历史)
+1.csv (3489期历史)
    │  update_ssq.py 三源抓取更新（中彩网官方API + EastMoney + 网易交叉校验）
+   │  ⚠️ 仅在开奖日（周二/四/日 22:00）由 cron 自动触发
    ▼
 ml.main 训练 6 模型 (rf / lgbm / cnn_math / lstm_blue / lstm_reds / lstm_all)
-   │  batch_predict_pg.py 批量预测 → 写入 PG
+   │  batch_predict_pg.py 批量预测 → 写入 PG (每月1号 03:00 cron 自动重训)
    ▼
-PostgreSQL ssq.model_predictions (data_date 列, 每次预测存北京当天)
-   │  select_numbers.py 读最新批次 → 各模型概率均值集成
-   ▼
-5 组候选号码（红球受控随机加权 + 奇偶/大小比约束 + 热号标注）
-   │  send_ssq_picks.py 组装中文邮件
-   ▼
-smtp.163.com → wleycn@163.com
+PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
+   │  select_numbers.py 读最新 → 集成（等权均值 or EBMA softmax 加权）
+   ├──────────────────────────────┐
+   ▼                              ▼
+5 组候选号码                   wheel 旋转矩阵
+（受控随机加权+奇偶/         （Top-18球池, 30注,
+大小比约束+冷热加权）          4-子集覆盖, pass_rate 95.4%）
+   │                              │
+   └──────────── 合并 ─────────────┘
+                 │
+                 ▼
+        邮件推送（开奖日 22:15 cron 触发 ssq_send_picks.py）
+        - 5组(按流行度降序) + wheel 30注
+        - 主题：双色球XXXXXX期推荐: 5组 + wheel30注(通过率95.4%)
+        ▼
+        smtp.163.com → wleycn@163.com
 ```
 
 ### 1. 数据更新（三源）
@@ -146,7 +166,18 @@ smtp.163.com → wleycn@163.com
 
 ### 5. 自动化（cron）
 
-通过 Hermes cron 配置：`0 22 * * 2,4,0`（**仅双色球开奖日周二/四/日 22:00**）触发 `update_ssq.py`，有更新则抓取入库并邮件通知。
+通过 Hermes cron 配置，三个任务全部 local-only（结果存文件，不重复发通知，脚本自带 163 邮件）：
+
+| 任务 | 时间 | 命令 | 作用 |
+|------|------|------|------|
+| 抓开奖 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件 |
+| 发下期预测 | 开奖日(二/四/日) 22:15 | `python ~/.hermes/scripts/ssq_send_picks.py` | 自动算下期+生成推荐+发邮件 |
+| 月度重训 | 每月1号 03:00 | `python retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
+
+> 抓开奖与发预测间隔 15 分钟（22:00→22:15），确保本期已入库后再生成下期预测。
+> 月度重训：Rocky 要求"模型一个月重训一次"，重训后 load_latest_probs 自动取每模型最新概率。
+
+**首次真实运行**：2026-08-16（周日）22:00/22:15。
 
 ## 模型说明
 
@@ -158,6 +189,25 @@ smtp.163.com → wleycn@163.com
 | LSTM_REDS | 深度学习 | 红球 1-33 | LSTM 多标签分类（仅红球） |
 | LSTM_ALL | 深度学习 | 红球+蓝球联合 | LSTM 多任务学习 |
 | CNN_MATH | 深度学习 | 红球+蓝球联合 | CNN + 数学后处理 |
+
+### 多模型集成（select_numbers.py）
+
+- **等权均值**（默认）：6 模型概率简单平均，向后兼容
+- **EBMA**（`--ensemble ebma`）：按历史开奖 log-likelihood softmax 加权，默认 tau=8000（接近等权不坍缩，因随机过程上模型差异属噪声）
+- **取数逻辑**：每模型每球种独立取最新 `run_at`（非单一全局最新），避免"必须一次跑完所有模型共享 run_at"的耦合
+
+### 马尔可夫马氏性闸门（feature_engineer.py）
+
+新增卡方列联表马氏性检验（α=0.05）：
+- 实测奇偶比序列 p=0.7494 >> 0.05，不通过
+- 闸门意义：在随机序列上，马尔可夫预测无意义，下游自动 markov_valid=False
+
+### 旋转矩阵覆盖设计（wheel.py）
+
+贪心 4-子集覆盖算法：
+- 池大小 N（默认 18），目标：30 注内让尽可能多的 6-子集"至少 4 红命中"
+- N=18 时 pass_rate=95.42%（穷举精确计算 C(18,6)=18564 种）
+- **诚实事实**：覆盖率只依赖池大小，与具体哪 18 个球无关。ML Top-18 池与随机 18 球池期望等价（历史回测验证：ML ROI -75.43% vs 随机中位数 -75.87%，差异 < 1 标准差）
 
 ### 模型加速（实测）
 
@@ -223,7 +273,9 @@ lstm_blue,blue,7,0.085432
 ## 注意事项
 
 - 本系统仅供技术学习与研究，彩票中奖为随机事件，预测结果不构成任何投注建议
+- 历史回测坐实：双色球为独立均匀随机过程，wheel 30 注 ROI 约 **-70% ~ -75%**（长期必亏）。请勿投入超出承受能力的资金
 - `ml/legacy/` 目录为早期探索代码，已归档隔离，不参与生产流程
 - 模型文件、预测结果、日志均不入版本控制（见 `.gitignore`）
 - `data_date` 写入使用 Python 侧北京日期（`datetime.now().date()`），不依赖 PG 的 `CURRENT_DATE`（服务器时区为 Etc/UTC，差 8 小时）
 - 预测表清理为不可逆操作，默认 dry-run，须显式 `--confirm` 才执行
+- **脚本 `~/.hermes/scripts/ssq_send_picks.py` 含数据库和邮件凭证，在 `~/.hermes/scripts/` 目录（不在 git 跟踪范围），切勿复制到仓库**
