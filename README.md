@@ -15,7 +15,7 @@ SSQ/
 ├── .gitignore                    # Git 忽略规则
 ├── requirements.txt              # Python 依赖清单
 ├── README.md                     # 本文件
-├── batch_predict_pg.py           # 批量训练 6 模型 → 概率写入 PostgreSQL
+├── batch_predict_pg.py           # 批量训练 8 模型 → 概率写入 PostgreSQL
 ├── pg_schema.py                  # PG 建表 + 1.csv 导入 draw_history + data_date 列迁移
 ├── cleanup_predictions.py        # 预测表 30 天滚动清理（仅动了 model_predictions）
 ├── select_numbers.py             # 读 PG 集成概率 → 生成 5 组候选号码（等权/EBMA 集成）
@@ -34,13 +34,14 @@ SSQ/
     ├── popularity.py             # 冷号加权（6 规则, λ=0.3, 5 组模式用）
     ├── spectral.py               # 蓝球 3 门随机性测试器（21 个函数）
     ├── spectral_red.py           # 红球 3 路径随机性测试器
+    ├── spectral_chaos.py         # 混沌/相空间重构检验器（Takens+Lyapunov+替代检验）
     ├── data/
     │   ├── dataset.py            # 数据加载与预处理
     │   ├── spider.py             # 历史数据爬虫（东方财富网，备用）
     │   ├── update_ssq.py         # 三源抓取更新主入口（中彩网+EastMoney+网易）
     │   └── append_ssq.py         # 幂等追加单行到 1.csv（CRLF 保真）
     ├── features/feature_engineer.py  # 特征工程（统计/频率/熵/马尔可夫等）
-    ├── models/                   # 模型实现（rf/lgbm/lstm/cnn）
+    ├── models/                   # 模型实现（rf/lgbm/lstm/cnn/transformer/cdm）
     ├── utils/helpers.py          # 通用工具函数
     ├── data/1.csv                # 原始数据（3489 期开奖记录，CRLF）
     ├── saved_models/             # 训练好的模型文件（不入版本控制）
@@ -86,7 +87,7 @@ pip install -r requirements.txt
    │  update_ssq.py 三源抓取更新（中彩网官方API + EastMoney + 网易交叉校验）
    │  ⚠️ 仅在开奖日（周二/四/日 22:00）由 cron 自动触发
    ▼
-ml.main 训练 6 模型 (rf / lgbm / cnn_math / lstm_blue / lstm_reds / lstm_all)
+ml.main 训练 8 模型 (rf / lgbm / cnn_math / lstm_blue / lstm_reds / lstm_all / transformer_all / cdm)
    │  batch_predict_pg.py 批量预测 → 写入 PG (每月1号 03:00 cron 自动重训)
    ▼
 PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
@@ -122,11 +123,11 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 ### 2. 批量预测入库
 
 ```bash
-# 训练+预测 6 模型，概率写入 PostgreSQL（schema: ssq）
+# 训练+预测 8 模型，概率写入 PostgreSQL（schema: ssq）
 .venv/bin/python batch_predict_pg.py
 ```
 
-每次运行产生一个批次（`run_at` 时间戳 + `data_date` 北京日期），6 模型各对 33 红球 / 16 蓝球输出概率，全量写入 `ssq.model_predictions`。
+每次运行产生一个批次（`run_at` 时间戳 + `data_date` 北京日期），8 模型各对 33 红球 / 16 蓝球输出概率，全量写入 `ssq.model_predictions`。
 
 ### 3. 选号 + 邮件推送
 
@@ -172,7 +173,7 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 |------|------|------|------|
 | 抓开奖 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件 |
 | 发下期预测 | 开奖日(二/四/日) 22:15 | `python ~/.hermes/scripts/ssq_send_picks.py` | 自动算下期+生成推荐+发邮件 |
-| 月度重训 | 每月1号 03:00 | `python retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
+| 月度重训 | 每月1号 03:00 | `python retrain_pipeline.py --no-email` | 重训8模型(不发邮件, 发预测自动用新概率) |
 
 > 抓开奖与发预测间隔 15 分钟（22:00→22:15），确保本期已入库后再生成下期预测。
 > 月度重训：Rocky 要求"模型一个月重训一次"，重训后 load_latest_probs 自动取每模型最新概率。
@@ -189,12 +190,22 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 | LSTM_REDS | 深度学习 | 红球 1-33 | LSTM 多标签分类（仅红球） |
 | LSTM_ALL | 深度学习 | 红球+蓝球联合 | LSTM 多任务学习 |
 | CNN_MATH | 深度学习 | 红球+蓝球联合 | CNN + 数学后处理 |
+| TRANSFORMER_ALL | 深度学习 | 红球+蓝球联合 | Transformer 编码器（自注意力，窗口序列） |
+| CDM | 贝叶斯统计 | 红球+蓝球联合 | Compound-Dirichlet-Multinomial 后验均值（频数+先验平滑） |
 
 ### 多模型集成（select_numbers.py）
 
-- **等权均值**（默认）：6 模型概率简单平均，向后兼容
+- **等权均值**（默认）：8 模型概率简单平均，向后兼容
 - **EBMA**（`--ensemble ebma`）：按历史开奖 log-likelihood softmax 加权，默认 tau=8000（接近等权不坍缩，因随机过程上模型差异属噪声）
 - **取数逻辑**：每模型每球种独立取最新 `run_at`（非单一全局最新），避免"必须一次跑完所有模型共享 run_at"的耦合
+
+### 混沌 / 相空间重构检验（ml/spectral_chaos.py）
+
+Takens 延迟嵌入 + Rosenstein Lyapunov + FFT 相位随机化替代检验 + 样本熵：
+- **定位**：随机性检验器（非预测器），延续光谱探针的"检验优先"思路
+- **实测结论**：SSQ 开奖序列无混沌结构（Lyapunov z=0.29, p=0.78，打乱排序后）
+- **重要陷阱（已记录）**：开奖号按升序排列（Red1<...<Red6）拍平后会引入**排序伪影**——未打乱时 Lyapunov 误报 CHAOTIC（z=9.88），每期内打乱后回到 RANDOM。**任何序列化开奖数据做时序分析前必须先打破排序**
+- **样本熵 FFT 分支有已知假阳性**（纯随机整数序列误报 CHAOTIC z=50.7），需以 Lyapunov 分支为准
 
 ### 马尔可夫马氏性闸门（feature_engineer.py）
 
@@ -217,7 +228,7 @@ LSTM 在 CPU 上原训练极慢（lstm_all 窗口 330 + 256 epoch ≈ 22 分钟�
 - 全局 `epochs 256 → 80`（早停 patience=7）
 - 训练循环加进度打印（消除"像卡死"误判）
 
-加速后：lstm_all 单模型训练 **~59s**，全 6 模型批量入库约 12 分钟。
+加速后：lstm_all 单模型训练 **~59s**，transformer_all 约 20 分钟（8 模型含 transformer/cdm 批量入库约 30 分钟）。
 
 ### CNN_MATH 后处理流程
 
