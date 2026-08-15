@@ -333,6 +333,10 @@ class TransformerAllModel(BaseModel):
         """
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
+        # CPU 小张量性能关键: 8 线程调度开销吞掉计算收益(实测 22x 差距),
+        # 4 线程为本机最优(见分析记录)。仅本模型生效, 不污染 LSTM/CNN。
+        if device.type == "cpu":
+            torch.set_num_threads(4)
         bs: int = self.config.get("batch_size", 64)
         epochs: int = self.config.get("epochs", 30)
         lr: float = self.config.get("learning_rate", 1e-3)

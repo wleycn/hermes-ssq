@@ -236,7 +236,9 @@ Transformer 性能优化（2026-08-15）：注意力 O(n²)，初始 window=128 
 - `batch_size 64 → 128`、`val_frequency 5 → 10`（对齐 LSTM）
 - `dim_feedforward 256 → 128`（对齐模型内部默认）
 
-调优后：**32 分钟 → 9 分钟**（3.6 倍）。未达理论 3-5 分钟，因 302 维特征输入投影 + 49 维输出头是固定成本，注意力非唯一瓶颈。9 分钟对月度重训（每月 1 号 cron）可接受，不再深压（模型增益≈0，过度优化无价值）。
+调优后：**32 分钟 → 9 分钟**（3.6 倍）。随后发现真正瓶颈并非注意力/维度，而是 **CPU 线程数**：PyTorch 默认 8 线程跑 64 维小张量时，线程调度开销吞掉计算收益（单 Linear 8 线程 12.6ms vs 4 线程 0.19ms，慢 66 倍）。`TransformerAllModel.train()` 内显式 `torch.set_num_threads(4)` 后，实测单模型重训 **32 分钟 → 29 秒（18.8 倍）**，8 模型批量约 10 分钟内完成。4 线程为本机最优（实测 1/2/4/8 线程对比），仅对 transformer 生效，不污染 LSTM/CNN。
+
+⚠️ 性能教训：CPU 上小模型训练务必实测线程数，默认 8 线程对 64 维小张量是灾难。
 
 ⚠️ 配置注意：`ml/config.py` 的 `TRANSFORMER_CONFIG` 是唯一生效配置，`ml/main.py` 实例化时显式传入；`transformer_model.py` 模块内默认值仅作 fallback。
 
