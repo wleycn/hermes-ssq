@@ -24,6 +24,18 @@ sys.path.insert(0, str(ROOT))
 import numpy as np
 import psycopg
 
+# 性能铁律(2026-08-15 多agent独立验收确认):
+#   torch.set_num_threads 是进程级全局设置, 必须在入口统一设 4。
+#   默认 8 线程在 Ryzen7/8-vCPU 上跑 64 维小张量时调度开销爆炸:
+#   LSTM +8818% / CNN +2860% / Transformer +591% (8线程 vs 4线程, 实测)。
+#   放在这里而不是模型内部: MODELS 列表里 torch 模型顺序靠后, 若在
+#   transformer train() 内才设置, 前面的 LSTM/CNN 已用 8 线程跑完。
+try:
+    import torch
+    torch.set_num_threads(4)
+except Exception:
+    pass
+
 import ml.main as M
 from ml.config import RED_COLS, BLUE_COLS
 from pg_schema import ensure_model_predictions_data_date

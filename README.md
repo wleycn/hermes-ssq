@@ -236,9 +236,11 @@ Transformer 性能优化（2026-08-15）：注意力 O(n²)，初始 window=128 
 - `batch_size 64 → 128`、`val_frequency 5 → 10`（对齐 LSTM）
 - `dim_feedforward 256 → 128`（对齐模型内部默认）
 
-调优后：**32 分钟 → 9 分钟**（3.6 倍）。随后发现真正瓶颈并非注意力/维度，而是 **CPU 线程数**：PyTorch 默认 8 线程跑 64 维小张量时，线程调度开销吞掉计算收益（单 Linear 8 线程 12.6ms vs 4 线程 0.19ms，慢 66 倍）。`TransformerAllModel.train()` 内显式 `torch.set_num_threads(4)` 后，实测单模型重训 **32 分钟 → 29 秒（18.8 倍）**，8 模型批量约 10 分钟内完成。4 线程为本机最优（实测 1/2/4/8 线程对比），仅对 transformer 生效，不污染 LSTM/CNN。
+调优后：**32 分钟 → 9 分钟**（3.6 倍）。随后发现真正瓶颈并非注意力/维度，而是 **CPU 线程数**：PyTorch 默认 8 线程跑 64 维小张量时，线程调度开销吞掉计算收益（单 Linear 8 线程 12.6ms vs 4 线程 0.19ms，慢 66 倍）。`TransformerAllModel.train()` 内显式 `torch.set_num_threads(4)` 后，实测单模型重训 **32 分钟 → 29 秒（18.8 倍）**，8 模型批量约 10 分钟内完成。4 线程为本机最优（实测 1/2/4/8 线程对比）。
 
-⚠️ 性能教训：CPU 上小模型训练务必实测线程数，默认 8 线程对 64 维小张量是灾难。
+⚠️ **2026-08-15 多agent独立验收修正（重要）**：早先结论"仅 transformer 需要、LSTM/CNN 免疫"是**错的**——测量被 `torch.set_num_threads` 的**进程级全局性**污染（在 transformer train() 内设置后，同进程内 LSTM/CNN 测量也变成 4 线程）。独立 test 子代理在干净进程逐模型扫描实测：**所有 torch 模型在 8 线程下都崩溃级慢**——LSTM +8818%、CNN +2860%、Transformer +591%（8 vs 4 线程）。已修复：`batch_predict_pg.py` **入口统一 `torch.set_num_threads(4)`**（不能在模型内部设，MODELS 里 LSTM/CNN 排在 transformer 前面，会先用 8 线程跑完）。
+
+⚠️ 性能教训：CPU 上小模型训练务必实测线程数，默认 8 线程对 64 维小张量是灾难；且 `set_num_threads` 是全局的，任何"某模型免疫"的结论必须在新进程、干净环境验证。
 
 ⚠️ 配置注意：`ml/config.py` 的 `TRANSFORMER_CONFIG` 是唯一生效配置，`ml/main.py` 实例化时显式传入；`transformer_model.py` 模块内默认值仅作 fallback。
 
