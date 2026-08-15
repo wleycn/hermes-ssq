@@ -228,7 +228,17 @@ LSTM 在 CPU 上原训练极慢（lstm_all 窗口 330 + 256 epoch ≈ 22 分钟�
 - 全局 `epochs 256 → 80`（早停 patience=7）
 - 训练循环加进度打印（消除"像卡死"误判）
 
-加速后：lstm_all 单模型训练 **~59s**，transformer_all 约 20 分钟（8 模型含 transformer/cdm 批量入库约 30 分钟）。
+加速后：lstm_all 单模型训练 **~59s**，transformer_all 约 9 分钟（8 模型含 transformer/cdm 批量入库约 15 分钟）。
+
+Transformer 性能优化（2026-08-15）：注意力 O(n²)，初始 window=128 + 每 epoch 验证导致 **32 分钟**。已调优：
+
+- `window_size 128 → 32`（注意力计算省 16 倍）
+- `batch_size 64 → 128`、`val_frequency 5 → 10`（对齐 LSTM）
+- `dim_feedforward 256 → 128`（对齐模型内部默认）
+
+调优后：**32 分钟 → 9 分钟**（3.6 倍）。未达理论 3-5 分钟，因 302 维特征输入投影 + 49 维输出头是固定成本，注意力非唯一瓶颈。9 分钟对月度重训（每月 1 号 cron）可接受，不再深压（模型增益≈0，过度优化无价值）。
+
+⚠️ 配置注意：`ml/config.py` 的 `TRANSFORMER_CONFIG` 是唯一生效配置，`ml/main.py` 实例化时显式传入；`transformer_model.py` 模块内默认值仅作 fallback。
 
 ### CNN_MATH 后处理流程
 

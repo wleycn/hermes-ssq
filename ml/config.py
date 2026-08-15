@@ -127,20 +127,23 @@ LSTM_CONFIG = {
 
 # ================= Transformer 配置 =================
 TRANSFORMER_CONFIG = {
-    "window_size": 128,
-    "batch_size": 64,
+    # 性能优化 (2026-08-15): 注意力 O(n²), window 128→32 省 16 倍计算
+    "window_size": 32,
+    "batch_size": 128,
     "epochs": 30,
     "learning_rate": 0.001,
     "d_model": 64,
     "nhead": 4,
     "num_layers": 2,
-    "dim_feedforward": 256,
+    # FFN 256→128 (对齐模型内部默认, 减少计算)
+    "dim_feedforward": 128,
     "dropout": 0.3,
     "l2_reg": 1e-4,
     "early_stop_patience": 5,
     "lr_scheduler_factor": 0.5,
     "lr_scheduler_patience": 3,
-    "val_frequency": 5,
+    # 验证频率 5→10 (对齐 LSTM, 减少一半验证开销)
+    "val_frequency": 10,
 }
 
 # ================= CDM 配置 =================

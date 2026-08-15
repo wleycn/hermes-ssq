@@ -13,7 +13,7 @@ import numpy as np, pandas as pd
 from sklearn.model_selection import train_test_split
 
 # 假设这些从 ml.config 导入
-from ml.config import ModelType, TARGET_COLS, RED_COLS, BLUE_COLS, DATA_FILE, MODELS_DIR, OUTPUT_DIR, MODEL_CONFIG
+from ml.config import ModelType, TARGET_COLS, RED_COLS, BLUE_COLS, DATA_FILE, MODELS_DIR, OUTPUT_DIR, MODEL_CONFIG, TRANSFORMER_CONFIG
 from ml.data import load_data, extract_feature_columns
 from ml.features import FeatureEngineer
 from ml.utils.helpers import print_banner, build_prediction_dataframe
@@ -56,7 +56,11 @@ def run_train(mt, df, retrain=True, col=None):
         m = mc(mn); m.load(sd); return m
     
     print(f"🚀 开始训练: {mn}")
-    m = mc(mn)
+    # Transformer 使用 ml/config.py 的统一配置 (模块内默认 window=128 会被覆盖为优化值)
+    if mt == "transformer_all":
+        m = mc(mn, config=TRANSFORMER_CONFIG)
+    else:
+        m = mc(mn)
     
     if mt in ["rf", "lgbm"]:
         X, y, _, _ = m.prepare_data(df[col])
