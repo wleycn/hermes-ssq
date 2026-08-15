@@ -125,6 +125,31 @@ LSTM_CONFIG = {
     "l2_reg": 1e-4,
 }
 
+# ================= Transformer 配置 =================
+TRANSFORMER_CONFIG = {
+    "window_size": 128,
+    "batch_size": 64,
+    "epochs": 30,
+    "learning_rate": 0.001,
+    "d_model": 64,
+    "nhead": 4,
+    "num_layers": 2,
+    "dim_feedforward": 256,
+    "dropout": 0.3,
+    "l2_reg": 1e-4,
+    "early_stop_patience": 5,
+    "lr_scheduler_factor": 0.5,
+    "lr_scheduler_patience": 3,
+    "val_frequency": 5,
+}
+
+# ================= CDM 配置 =================
+CDM_CONFIG = {
+    # Dirichlet 先验平滑参数: 值越小先验越弱, 后验越贴频数
+    "alpha_red": 0.5,
+    "alpha_blue": 0.5,
+}
+
 # ================= CNN 配置 =================
 CNN_CONFIG = {
     # 数学模型CNN (概率增强)

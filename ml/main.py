@@ -29,6 +29,8 @@ _MODEL_MAP = {
     "lstm_reds": ("ml.models.lstm_model", "LSTMRedModel"),
     "lstm_all": ("ml.models.lstm_model", "LSTMAllModel"),
     "cnn_math": ("ml.models.cnn_model", "CNNMathModel"),
+    "transformer_all": ("ml.models.transformer_model", "TransformerAllModel"),
+    "cdm": ("ml.models.cdm_model", "CDMModel"),
 }
 
 def get_model_cls(mt):
@@ -58,7 +60,10 @@ def run_train(mt, df, retrain=True, col=None):
     
     if mt in ["rf", "lgbm"]:
         X, y, _, _ = m.prepare_data(df[col])
-    elif "lstm" in mt:
+    elif mt == "cdm":
+        # CDM 无监督频数模型: 直接喂原始开奖 DataFrame
+        X, y = df, None
+    elif "lstm" in mt or mt == "transformer_all":
         fe = FeatureEngineer(); dfe = fe.compute_all_features(df)
         fc = extract_feature_columns(dfe); ws = m.config.get("window_size", 128)
         args = {"df": dfe, "feature_cols": fc, "window_size": ws}
@@ -102,11 +107,19 @@ def run_predict(mt, df, col=None):
         return {"column": col, "top_numbers": nums[np.argsort(proba)[-6:][::-1]].tolist(), 
                 "top_probs": np.sort(proba)[-6:][::-1].tolist(), "all_numbers": nums.tolist(), "all_probs": proba.tolist()}
     
+    if mt == "cdm":
+        # CDM 无监督频数模型: 无需特征, 直接后验均值
+        p = m.predict_proba()[0]
+        ri, bi = np.argsort(p[:33])[-6:][::-1], np.argsort(p[33:])[-6:][::-1]
+        return {"top_red_numbers": (ri+1).tolist(), "top_red_probs": p[:33][ri].tolist(),
+                "top_blue_numbers": (bi+1).tolist(), "top_blue_probs": p[33:][bi].tolist(),
+                "all_red_probs": p[:33].tolist(), "all_blue_probs": p[33:].tolist()}
+
     fe = FeatureEngineer(); dfe = fe.compute_all_features(df)
     fc = getattr(m, 'feature_cols', None) or extract_feature_columns(dfe)
-    ws = m.config.get("window_size", 128 if "lstm" in mt else 33)
+    ws = m.config.get("window_size", 128 if ("lstm" in mt or mt == "transformer_all") else 33)
     
-    if "lstm" in mt:
+    if "lstm" in mt or mt == "transformer_all":
         xd = dfe[fc].values.astype(np.float32)
         xl = np.zeros((1, ws, len(fc))); xl[0] = xd[-ws:]
         if m.scaler: xl = m.scaler.transform(xl.reshape(-1, xl.shape[-1])).reshape(xl.shape)

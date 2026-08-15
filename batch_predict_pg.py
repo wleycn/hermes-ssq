@@ -30,7 +30,7 @@ from pg_schema import ensure_model_predictions_data_date
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
-MODELS = ["rf", "lgbm", "cnn_math", "lstm_blue", "lstm_reds", "lstm_all"]
+MODELS = ["rf", "lgbm", "cnn_math", "lstm_blue", "lstm_reds", "lstm_all", "transformer_all", "cdm"]
 
 
 def ensure_schema(conn):
