@@ -33,7 +33,8 @@ import psycopg
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
-EXPECTED_MODELS = ["cnn_math", "lgbm", "lstm_all", "lstm_blue", "lstm_reds", "rf"]
+EXPECTED_MODELS = ["cnn_math", "lgbm", "lstm_all", "lstm_blue", "lstm_reds", "rf",
+                   "transformer_all", "cdm"]  # 8 模型全量(2026-08-16 doc 审核 M1: 原 6 个漏 transformer_all/cdm)
 SEND_SCRIPT = Path.home() / ".hermes" / "scripts" / "ssq_send_picks.py"
 
 
