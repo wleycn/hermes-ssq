@@ -5,7 +5,7 @@
 定位: 把「摇奖机公平」变成统计证据 —— 非预测器。无状态、无 IO、纯 numpy 计算;
 只依赖 numpy / scipy / math / decimal（无 pandas、无数据 IO、无 evaluate 依赖）。
 
-统计口径（架构文档 arch_spectral_probe.json, ADR 已拍板）:
+统计口径（ADR 已拍板, 原交接件 docs/arch_spectral_probe.json 已归档删除 2026-08-16, 见 skill:ssq-lottery-pipeline references/spectral-probe-implementation.md）:
 - ADR-001 主编码 = 复平面单位圆 z = exp(2πi·x/16), x ∈ 1..16; one-hot 仅作门3 交叉复核。
 - ADR-002 Fisher's g 精确 p 在全段原始周期图（m=N-1）上计算; Welch 平均谱仅作峰位交叉核对。
 - ADR-003 门1 自相关用复圆自相关 |R(τ)|·√N（SE=1/√N 精确成立, 实测校准 0/1000 误报）。
