@@ -38,10 +38,10 @@ SEND_SCRIPT = Path.home() / ".hermes" / "scripts" / "ssq_send_picks.py"
 
 
 def run_retrain() -> float:
-    """跑 batch_predict_pg.py 全量重训. 返回耗时(秒)."""
+    """跑 batch_predict_pg.py 全量重训(显式 --retrain). 返回耗时(秒)."""
     t0 = time.time()
     proc = subprocess.run(
-        [str(ROOT / ".venv" / "bin" / "python"), str(ROOT / "batch_predict_pg.py")],
+        [str(ROOT / ".venv" / "bin" / "python"), str(ROOT / "batch_predict_pg.py"), "--retrain"],
         cwd=str(ROOT), check=True)
     return time.time() - t0
 

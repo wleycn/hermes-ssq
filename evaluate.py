@@ -61,10 +61,11 @@ from ml.spectral_red import (
 # 特征开关（生产默认）。CLI --features 显式请求某特征时, 本次评测运行临时启用对应开关。
 FEATURE_TOGGLES: Dict[str, bool] = {
     "entropy": True,
-    "hot_cold": True,
+    "hot_cold": False,
     "ac": False,
     "crf": False,
     "diversity": False,
+    "prime_composite": False,
 }
 
 # 特征开关 -> build_unified_features keep_override 追加白名单列（特征管线侧联动）
@@ -74,6 +75,7 @@ FEATURE_WHITELIST_COLS: Dict[str, List[str]] = {
     "ac": ["AC_Value"],
     "crf": [],
     "diversity": [],
+    "prime_composite": ["Prime_Count", "Prime_Ratio"],
 }
 
 EVAL_CONFIG: Dict = {
@@ -82,6 +84,7 @@ EVAL_CONFIG: Dict = {
     "n_trials": 1000,      # 蒙特卡洛基线抽样次数（与 random_red_overlap_actual 默认统一 N）
     "seed": 1,
     "pool_size": 12,       # ac/diversity 策略候选池大小
+    "prime_lambda": 1.5,   # prime_composite 质数偏好权重(>1 偏好质数, <1 偏好合数)
     "red_theory_mean": RED_RANDOM_EXPECT,
     "blue_theory_rate": BLUE_RANDOM_EXPECT,
     "sig_alpha": 1.96,     # 显著性阈值系数
@@ -228,6 +231,25 @@ def strategy_ac(df_trunc: pd.DataFrame, t: int, ctx: EvalContext) -> Prediction:
     return Prediction(reds=best or _top_red(red_f, 6), blue=int(blue))
 
 
+PRIME_NUMBERS = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31})  # 1..33 内 11 个质数
+
+
+def strategy_prime_composite(df_trunc: pd.DataFrame, t: int, ctx: EvalContext) -> Prediction:
+    """prime_composite: score = 近200期频次 x 质数偏好权重, top6; 蓝=近50期top1。
+
+    质数集合(1..33)共 11 个, 理论占比 11/33。lambda>1 偏好质数(质多方向),
+    lambda<1 偏好合数(合多方向)。默认 1.5 质多方向; 回测不显著可换 lambda 对照。
+    """
+    lam = float(ctx.config.get("prime_lambda", EVAL_CONFIG.get("prime_lambda", 1.5)))
+    score = _red_freq(df_trunc, 200).astype(np.float64)
+    for i in range(33):
+        if (i + 1) in PRIME_NUMBERS:
+            score[i] *= lam
+    reds = _top_red(score, 6)
+    blue = _top_blue(_blue_freq(df_trunc, 50))
+    return Prediction(reds=reds, blue=blue)
+
+
 def strategy_crf(df_trunc: pd.DataFrame, t: int, ctx: EvalContext) -> Prediction:
     """crf: 概率源=近200期频次概率(或 ctx.probs 冻结 PG 概率), 约束 beam 解码(ml/decode.py)。"""
     probs = _prob_source(df_trunc, ctx)
@@ -349,6 +371,7 @@ STRATEGIES: Dict[str, Dict] = {
     "ac":        {"fn": strategy_ac,        "kind": "feature",  "features": ["ac"]},
     "crf":       {"fn": strategy_crf,       "kind": "feature",  "features": ["crf"]},
     "diversity": {"fn": strategy_diversity, "kind": "feature",  "features": ["diversity"]},
+    "prime_composite": {"fn": strategy_prime_composite, "kind": "feature", "features": ["prime_composite"]},
     "model:pg":  {"fn": strategy_model_pg,  "kind": "model",    "features": []},
     "spectral":  {"fn": strategy_spectral,  "kind": "probe",    "features": []},
 }

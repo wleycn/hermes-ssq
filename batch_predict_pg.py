@@ -83,17 +83,23 @@ def aggregate_rf_results(res: dict):
     return reds, blues
 
 
-def run_one(mt: str, df):
+def run_one(mt: str, df, retrain: bool = False):
     """训练+预测单个模型, 返回 (reds:33, blues:16) 或 None。
     支持部分输出模型:
       - cnn_math / lstm_all : 红蓝全量 (all_red_probs + all_blue_probs)
       - lstm_blue          : 仅蓝球 (all_blue_probs)
       - lstm_reds          : 仅红球 (all_red_probs)
       - rf / lgbm         : 逐位置聚合 -> 红蓝全量
-    缺失的那一侧返回 None, 由 load_latest_probs 在集成时跳过。"""
+    缺失的那一侧返回 None, 由 load_latest_probs 在集成时跳过。
+
+    retrain: True=重训+保存; False=load 已存模型(run_train 内部兜底:
+    模型不存在时自动训练)。重训与否由调用方显式决定——月度重训由 cron
+    (retrain_pipeline.py --no-email, 每月1号03:00) 负责, 本脚本不做
+    mtime/日期自动判断(2026-08-16 Rocky 指示: 不需要在代码层面实现)。"""
     try:
+        print(f"     模型状态: {'重训模式(--retrain)' if retrain else '复用已存模型(不存在则自动训练)'}")
         if mt in ("rf", "lgbm"):
-            res = M.batch_process(mt, df, RED_COLS + ["Blue1"], True)
+            res = M.batch_process(mt, df, RED_COLS + ["Blue1"], retrain)
             if not res:
                 return None
             reds, blues = aggregate_rf_results(res)
@@ -101,7 +107,7 @@ def run_one(mt: str, df):
                 return None
             return reds, blues
         # 其余为 torch 模型
-        M.run_train(mt, df, True)
+        M.run_train(mt, df, retrain)
         r = M.run_predict(mt, df)
         if not r:
             return None
@@ -121,6 +127,8 @@ def run_one(mt: str, df):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=None)
+    ap.add_argument("--retrain", action="store_true",
+                    help="强制重训全部模型(月度 cron/手动重训用); 默认复用已存模型")
     args = ap.parse_args()
 
     print(f"[run] {datetime.now():%Y-%m-%d %H:%M:%S} 加载数据...")
@@ -135,7 +143,7 @@ def main():
     for mt in targets:
         print(f"\n=== 模型 {mt} ===")
         t0 = time.time()
-        out = run_one(mt, df)
+        out = run_one(mt, df, args.retrain)
         if out is None:
             continue
         reds, blues = out
