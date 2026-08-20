@@ -253,7 +253,7 @@ class TransformerAllModel(BaseModel):
         model: _TransformerNet 网络
     """
 
-    def __init__(self, model_name: str = "transformer_all", config: Optional[Dict[str, Any]] = None):
+    def __init__(self, model_name: str = "transformer", config: Optional[Dict[str, Any]] = None):
         """初始化模型
 
         Args:

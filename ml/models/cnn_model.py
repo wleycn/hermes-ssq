@@ -41,7 +41,7 @@ def _joint_loss(co, ro, lc, lr, w=0.01):
     return cl + w * rl, cl, rl
 
 class CNNMathModel(BaseModel):
-    def __init__(self, model_name="cnn_math", config=None):
+    def __init__(self, model_name: str = "cnn_reg", config=None):
         super().__init__(model_name, config or CNN_CONFIG["cnn_math"])
         self.rs, self.bs = 28, 16
         self.reg_tgts = ["Next_Sum","Next_OddRatio","Next_BigRatio","Next_Hot","Next_Cold","Next_Max_Omission","Next_Avg_Omission"]

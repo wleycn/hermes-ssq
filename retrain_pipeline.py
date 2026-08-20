@@ -33,8 +33,7 @@ import psycopg
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
-EXPECTED_MODELS = ["cnn_math", "lgbm", "lstm_all", "lstm_blue", "lstm_reds", "rf",
-                   "transformer_all", "cdm"]  # 8 模型全量(2026-08-16 doc 审核 M1: 原 6 个漏 transformer_all/cdm)
+EXPECTED_MODELS = ["cnn_reg", "lightgbm", "lstm", "rf", "transformer", "cdm"]  # 6 模型全量(2026-08-19 收敛: 删 lstm_blue/lstm_reds, 改名 lgbm→lightgbm/cnn_math→cnn_reg/lstm_all→lstm/transformer_all→transformer)
 SEND_SCRIPT = Path.home() / ".hermes" / "scripts" / "ssq_send_picks.py"
 
 
@@ -64,13 +63,13 @@ def check_coverage() -> dict:
 def verify_all_models(cov: dict) -> bool:
     """验证红/蓝两侧各自有足够模型覆盖.
 
-    注意: 部分模型是单侧输出设计(lstm_blue 仅蓝, lstm_reds 仅红),
-    因此不要求每个模型都红+蓝, 而是:
+    注意: 所有模型均为红蓝双头全量输出(lstm 已合并为唯一双头入口),
+    故不要求每个模型都红+蓝, 而是:
       - 红球侧: 至少覆盖 EXPECTED_RED_MODELS
       - 蓝球侧: 至少覆盖 EXPECTED_BLUE_MODELS
     """
-    EXPECTED_RED_MODELS = ["cnn_math", "lgbm", "lstm_all", "lstm_reds", "rf"]
-    EXPECTED_BLUE_MODELS = ["cnn_math", "lgbm", "lstm_all", "lstm_blue", "rf"]
+    EXPECTED_RED_MODELS = ["cnn_reg", "lightgbm", "lstm", "rf"]
+    EXPECTED_BLUE_MODELS = ["cnn_reg", "lightgbm", "lstm", "rf"]
     red_cov = {m for m, s in cov.items() if s.get("red")}
     blue_cov = {m for m, s in cov.items() if s.get("blue")}
     miss_red = [m for m in EXPECTED_RED_MODELS if m not in red_cov]

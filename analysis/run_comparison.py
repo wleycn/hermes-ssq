@@ -24,10 +24,11 @@ import pandas as pd
 from ml.data import load_data
 from ml.config import RED_COLS, BLUE_COLS
 from ml.features.feature_engineer import FeatureEngineer
-from ml.models import (
-    RandomForestModel, LightGBMModel,
-    LSTMRedModel, CNNMathModel, SetRedModel,
-)
+from ml.models.rf_model import RandomForestModel
+from ml.models.lgb_model import LightGBMModel
+from ml.models.lstm_model import LSTMModel
+from ml.models.cnn_model import CNNMathModel
+from ml.models.set_model import SetRedModel  # legacy 对比用, 非生产模型
 from ml.eval.walk_forward import (
     run_walk_forward, freq_red_baseline_overlap,
     random_red_overlap_actual,
@@ -172,26 +173,26 @@ def main():
     results["rf(legacy-approx)"] = res_rf
     print(f"    红球平均集合命中={res_rf['red_mean_overlap']:.3f}  ({time.time()-t0:.0f}s)")
 
-    # LSTM_REDS
+    # LSTM (legacy 对比: 原 lstm_reds 单头已合并为唯一 lstm 双头入口)
     t0 = time.time()
-    print("\n[3/4] LSTM_REDS 旧分位置建模 ...")
+    print("\n[3/4] LSTM 旧分位置建模 ...")
     def lstm_factory(d):
-        m = LSTMRedModel("lstm_reds")
+        m = LSTMModel("lstm")
         fe = FeatureEngineer()
         dfe = fe.compute_all_features(d).dropna()
         fc = [c for c in dfe.select_dtypes(include=[np.number]).columns
               if c not in ["Red1","Red2","Red3","Red4","Red5","Red6","Blue1","Sum","Odd_Count"]]
-        X, y = m.prepare_data(dfe, fc, target_cols=RED_COLS, window_size=WS)
+        X, y = m.prepare_data(dfe, fc, window_size=WS)
         Xtr, Xva, ytr, yva = X[:-50], X[-50:], y[:-50], y[-50:]
         m.train(Xtr, ytr, Xva, yva)
         return m
     res_lstm = run_walk_forward(
         lstm_factory, df, train_min=train_min, horizon=horizon,
-        predict_fn=lambda m, d, t: _lstm_cnn_legacy_predict(m, d, t, "lstm_reds"),
+        predict_fn=lambda m, d, t: _lstm_cnn_legacy_predict(m, d, t, "lstm"),
     )
-    results["lstm_reds(legacy)"] = res_lstm
+    results["lstm(legacy)"] = res_lstm
     print(f"    红球平均集合命中={res_lstm['red_mean_overlap']:.3f}  ({time.time()-t0:.0f}s)")
-    json.dump(res_lstm["details"], open(out_dir / "wf_lstm_reds.json", "w"), default=str)
+    json.dump(res_lstm["details"], open(out_dir / "wf_lstm.json", "w"), default=str)
 
     # CNN_MATH
     t0 = time.time()

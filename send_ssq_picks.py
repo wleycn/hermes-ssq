@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成双色球 5 组候选号码并通过 smtplib 直发邮件(绕过 hermes 坏掉的 email 通道)。
+"""生成双色球 5 组候选号码并发送邮件。
 
-流程: select_numbers.generate -> 组装中文邮件正文 -> 发往 wleycn@163.com。
+发信统一走中枢 send_email.py (To=126 + Cc=163 由 .env 兜底); 不再内嵌 smtplib.
 
 用法:
   .venv/bin/python send_ssq_picks.py                 # 生成并发送
@@ -11,29 +11,16 @@
 """
 from __future__ import annotations
 import argparse
-import os
-import smtplib
+import subprocess
 import sys
 from datetime import datetime
-from email.header import Header
-from email.mime.text import MIMEText
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import select_numbers as SN
 
-
-def read_env() -> dict:
-    f = Path(os.path.expanduser("~/.hermes/.env"))
-    v = {}
-    if f.exists():
-        for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, val = line.split("=", 1)
-                v[k.strip()] = val.strip()
-    return v
+SEND_EMAIL_CLI = Path.home() / ".hermes/skills/email/send-email/send_email.py"
 
 
 def build_body(red_mean, blue_mean, groups, run_at, models):
@@ -69,30 +56,25 @@ def build_body(red_mean, blue_mean, groups, run_at, models):
     return "\n".join(lines)
 
 
-def send_email(subject: str, body: str, to_addr: str, dry_run: bool = False) -> bool:
-    env = read_env()
-    host = env.get("EMAIL_SMTP_HOST", "smtp.163.com")
-    port = int(env.get("EMAIL_SMTP_PORT", "465"))
-    user = env.get("EMAIL_ADDRESS") or env.get("EMAIL_USER", "")
-    pwd = env.get("EMAIL_PASSWORD", "")
-    if not pwd or not user:
-        print("[warn] 邮件凭据缺失")
-        return False
+def send_email(subject: str, body: str, to_addr: str | None = None, dry_run: bool = False) -> bool:
+    """统一走中枢 CLI: 默认收件 (To=126 + Cc=163); 显式 to_addr 时覆盖."""
+    tmp = Path("/tmp/ssq_picks_body.txt")
+    tmp.write_text(body, encoding="utf-8")
+    cmd = [sys.executable, str(SEND_EMAIL_CLI),
+           "--subject", subject, "--body-file", str(tmp)]
+    if to_addr:
+        cmd += ["--to", to_addr]
     if dry_run:
-        print(f"[DRY-RUN] 将发往 {to_addr} via {host}:{port}\n--- 正文 ---\n{body}")
-        return True
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["From"] = user
-    msg["To"] = to_addr
-    msg["Subject"] = Header(subject, "utf-8")
+        cmd.append("--dry-run")
     try:
-        with smtplib.SMTP_SSL(host, port, timeout=30) as s:
-            s.login(user, pwd)
-            s.send_message(msg)
-        print(f"✓ 邮件已发送至 {to_addr}")
+        cp = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if cp.returncode != 0:
+            print(f"✗ 邮件发送失败: {cp.stderr.strip()[:200]}")
+            return False
+        print(cp.stdout.strip())
         return True
     except Exception as e:
-        print(f"✗ 邮件发送失败: {e!r}")
+        print(f"✗ 邮件发送异常: {e!r}")
         return False
 
 
@@ -113,8 +95,7 @@ def main():
 
     body = build_body(red_mean, blue_mean, args.groups, run_at, models)
     subject = f"🎯 双色球 5 组候选号码（模型集成 · {datetime.now():%m-%d}）"
-    to = args.to or read_env().get("EMAIL_HOME_ADDRESS") or "wleycn@163.com"
-    ok = send_email(subject, body, to, dry_run=args.dry_run)
+    ok = send_email(subject, body, args.to, dry_run=args.dry_run)
     sys.exit(0 if ok else 1)
 
 

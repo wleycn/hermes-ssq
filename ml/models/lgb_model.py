@@ -170,7 +170,7 @@ class LightGBMModel(BaseModel):
 
     def __init__(
         self,
-        model_name: str = "lgbm",
+        model_name: str = "lightgbm",
         config: Optional[Dict[str, Any]] = None,
     ):
         """初始化 LightGBM 模型

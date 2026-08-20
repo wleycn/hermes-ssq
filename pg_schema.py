@@ -142,6 +142,43 @@ def ensure_model_predictions_data_date(conn: psycopg.Connection) -> None:
         conn.commit()
 
 
+def draw_history_drift(conn: psycopg.Connection) -> dict:
+    """检测 ssq.draw_history 与 1.csv 是否漂移（RISK-3 护栏）。
+
+    只读检查，不写库。返回 {"csv_rows","pg_rows","last_csv_issue","last_pg_issue",
+    "drift":bool}。H1 决策：draw_history 为只读归档，由 import_draw_history 手动
+    同步；此函数用于运维巡检，发现 pg 落后 csv 时人工跑 sync_draw_history()。
+    """
+    csv_path = Path(__file__).resolve().parent / "ml/data/1.csv"
+    info = {"csv_rows": 0, "pg_rows": 0, "last_csv_issue": None,
+            "last_pg_issue": None, "drift": False}
+    if csv_path.exists():
+        import csv as _csv
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+            rows = [r for r in _csv.reader(f) if r and r[0].strip().lower() not in ("dnum", "deliver number")]
+        info["csv_rows"] = len(rows)
+        if rows:
+            info["last_csv_issue"] = rows[-1][0]
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM ssq.draw_history;")
+        info["pg_rows"] = cur.fetchone()[0]
+        cur.execute("SELECT dNum FROM ssq.draw_history ORDER BY dNum DESC LIMIT 1;")
+        row = cur.fetchone()
+        if row is not None:
+            info["last_pg_issue"] = row[0]
+    info["drift"] = (info["csv_rows"] != info["pg_rows"])
+    return info
+
+
+def sync_draw_history(conn: psycopg.Connection) -> int:
+    """幂等重导 1.csv -> ssq.draw_history（覆盖式）。供运维在 drift 时手动调用。
+
+    不进生产 cron（H1：只读归档 + 人工同步）。
+    """
+    n = import_draw_history(Path(__file__).resolve().parent / "ml/data/1.csv", conn)
+    return n
+
+
 if __name__ == "__main__":
     # 直接运行本模块即执行 T1+T2+T3 并对结果做基本 sanity 校验
     c = get_conn()
@@ -150,9 +187,11 @@ if __name__ == "__main__":
         n = import_draw_history(Path(__file__).resolve().parent / "ml/data/1.csv", c)
         print(f"[import] draw_history rows = {n} (expect {EXPECTED_ROWS})")
         ensure_model_predictions_data_date(c)
+        d = draw_history_drift(c)
+        print(f"[drift] csv={d['csv_rows']} pg={d['pg_rows']} "
+              f"last_csv={d['last_csv_issue']} last_pg={d['last_pg_issue']} "
+              f"drift={d['drift']}")
         with c.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM ssq.draw_history;")
-            print("[check] draw_history count =", cur.fetchone()[0])
             cur.execute("SELECT COUNT(*) FROM ssq.model_predictions WHERE data_date IS NULL;")
             print("[check] model_predictions data_date NULL =", cur.fetchone()[0])
     finally:

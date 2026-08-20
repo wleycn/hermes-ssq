@@ -4,12 +4,12 @@
 写入 PostgreSQL（schema: ssq），供 select_numbers 集成选号。
 
 模型选择(均为 CPU 友好、秒级~分钟级, 规避慢 LSTM):
-  - rf / lgbm : 逐位置模型(Red1..Red6 + Blue1), 聚合为 33红/16蓝全量概率
-  - cnn_math  : 直接输出 all_red_probs(33) / all_blue_probs(16)
+  - rf / lightgbm : 逐位置模型(Red1..Red6 + Blue1), 聚合为 33红/16蓝全量概率
+  - cnn_reg  : 直接输出 all_red_probs(33) / all_blue_probs(16)
 
 用法:
   .venv/bin/python batch_predict_pg.py                 # 跑全部模型 + 入库
-  .venv/bin/python batch_predict_pg.py --model cnn_math
+  .venv/bin/python batch_predict_pg.py --model cnn_reg
 """
 from __future__ import annotations
 import argparse
@@ -42,7 +42,7 @@ from pg_schema import ensure_model_predictions_data_date
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
-MODELS = ["rf", "lgbm", "cnn_math", "lstm_blue", "lstm_reds", "lstm_all", "transformer_all", "cdm"]
+MODELS = ["rf", "lightgbm", "cnn_reg", "lstm", "transformer", "cdm"]
 
 
 def ensure_schema(conn):
@@ -86,10 +86,8 @@ def aggregate_rf_results(res: dict):
 def run_one(mt: str, df, retrain: bool = False):
     """训练+预测单个模型, 返回 (reds:33, blues:16) 或 None。
     支持部分输出模型:
-      - cnn_math / lstm_all : 红蓝全量 (all_red_probs + all_blue_probs)
-      - lstm_blue          : 仅蓝球 (all_blue_probs)
-      - lstm_reds          : 仅红球 (all_red_probs)
-      - rf / lgbm         : 逐位置聚合 -> 红蓝全量
+      - cnn_reg / lstm / transformer : 红蓝全量 (all_red_probs + all_blue_probs)
+      - rf / lightgbm               : 逐位置聚合 -> 红蓝全量
     缺失的那一侧返回 None, 由 load_latest_probs 在集成时跳过。
 
     retrain: True=重训+保存; False=load 已存模型(run_train 内部兜底:
@@ -98,7 +96,7 @@ def run_one(mt: str, df, retrain: bool = False):
     mtime/日期自动判断(2026-08-16 Rocky 指示: 不需要在代码层面实现)。"""
     try:
         print(f"     模型状态: {'重训模式(--retrain)' if retrain else '复用已存模型(不存在则自动训练)'}")
-        if mt in ("rf", "lgbm"):
+        if mt in ("rf", "lightgbm"):
             res = M.batch_process(mt, df, RED_COLS + ["Blue1"], retrain)
             if not res:
                 return None

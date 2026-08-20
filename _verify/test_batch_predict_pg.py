@@ -36,12 +36,12 @@ def _fake_run_one(monkeypatch, payload):
 
 
 def test_full_prob_extraction_cnn(mod, monkeypatch):
-    """cnn_math 形态: 全量概率应被正确提取为 33 红 / 16 蓝。"""
+    """cnn_reg 形态: 全量概率应被正确提取为 33 红 / 16 蓝。"""
     payload = {"all_red_probs": [0.0] * 33, "all_blue_probs": [0.0] * 16}
     payload["all_red_probs"][22] = 0.9
     payload["all_blue_probs"][5] = 0.8
     _fake_run_one(monkeypatch, payload)
-    out = mod.run_one("cnn_math", None)
+    out = mod.run_one("cnn_reg", None)
     assert out is not None
     reds, blues = out
     assert reds.shape == (33,) and blues.shape == (16,)
@@ -49,15 +49,15 @@ def test_full_prob_extraction_cnn(mod, monkeypatch):
 
 
 def test_reject_cnn_missing_keys(mod, monkeypatch):
-    """cnn_math 缺少全量概率键应被拒绝。"""
+    """cnn_reg 缺少全量概率键应被拒绝。"""
     _fake_run_one(monkeypatch, {"top_numbers": [1, 2, 3]})
-    assert mod.run_one("cnn_math", None) is None
+    assert mod.run_one("cnn_reg", None) is None
 
 
 def test_reject_bad_dim(mod, monkeypatch):
     """红球维度不足33时, reds 应为 None(部分输出合法, 而非整体拒绝)。"""
     _fake_run_one(monkeypatch, {"all_red_probs": [0.1] * 10, "all_blue_probs": [0.1] * 16})
-    reds, blues = mod.run_one("cnn_math", None)
+    reds, blues = mod.run_one("cnn_reg", None)
     assert reds is None
     assert blues is not None and blues.shape == (16,)
 
@@ -68,7 +68,7 @@ def test_reject_exception(mod, monkeypatch):
     def _boom(*a, **k):
         raise RuntimeError("boom")
     monkeypatch.setattr(M, "run_train", _boom)
-    assert mod.run_one("cnn_math", None) is None
+    assert mod.run_one("cnn_reg", None) is None
 
 
 def test_rf_aggregation(mod, monkeypatch):

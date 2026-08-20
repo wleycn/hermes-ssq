@@ -63,21 +63,21 @@ def test_generate_seeded_reproducible(SN, mock_probs):
 
 def test_build_body_contains_picks_and_logic(SSP, mock_probs):
     red, blue = mock_probs
-    body = SSP.build_body(red, blue, groups=5, run_at="2026-08-12 23:00:00", models=["rf", "lgbm", "cnn_math"])
+    body = SSP.build_body(red, blue, groups=5, run_at="2026-08-12 23:00:00", models=["rf", "lightgbm", "cnn_reg"])
     assert "双色球 5 组候选号码" in body
     assert "【选取逻辑】" in body
     assert "免责声明" in body
     # 5 组都应出现
     assert body.count("第") >= 5
     # 模型来源列出实际传入的模型
-    for m in ["rf", "lgbm", "cnn_math"]:
+    for m in ["rf", "lightgbm", "cnn_reg"]:
         assert m in body
 
 
 def test_send_email_dry_run(SSP, mock_probs, capsys):
     red, blue = mock_probs
-    body = SSP.build_body(red, blue, groups=5, run_at="x", models=["rf", "lgbm", "cnn_math"])
+    body = SSP.build_body(red, blue, groups=5, run_at="x", models=["rf", "lightgbm", "cnn_reg"])
     ok = SSP.send_email("主题", body, "wleycn@163.com", dry_run=True)
     assert ok is True
     out = capsys.readouterr().out
-    assert "DRY-RUN" in out and "wleycn@163.com" in out
+    assert "[dry-run]" in out and "wleycn@163.com" in out

@@ -210,24 +210,24 @@ SPIDER_CONFIG = {
 # ================= 模型类型枚举 =================
 class ModelType:
     RF = "rf"           # 随机森林
-    LGBM = "lgbm"       # LightGBM
-    LSTM_BLUE = "lstm_blue"
-    LSTM_REDS = "lstm_reds"
-    LSTM_ALL = "lstm_all"
-    CNN_MATH = "cnn_math"
+    LIGHTGBM = "lightgbm"       # LightGBM
+    LSTM = "lstm"               # 唯一 LSTM 入口(2026-08-19 合并蓝/红/全量)
+    CNN_REG = "cnn_reg"         # CNN + 回归目标(和值/奇偶比等)
+    TRANSFORMER = "transformer" # Transformer(红蓝双头)
+    CDM = "cdm"                 # Compound-Dirichlet-Multinomial 频率检验
 
-    ALL = [RF, LGBM, LSTM_BLUE, LSTM_REDS, LSTM_ALL, CNN_MATH]
+    ALL = [RF, LIGHTGBM, LSTM, CNN_REG, TRANSFORMER, CDM]
 
 
 def get_model_config(model_type: str) -> dict:
     """根据模型类型获取对应配置"""
     config_map = {
         ModelType.RF: RF_CONFIG,
-        ModelType.LGBM: LGB_CONFIG,
-        ModelType.LSTM_BLUE: LSTM_CONFIG,
-        ModelType.LSTM_REDS: LSTM_CONFIG,
-        ModelType.LSTM_ALL: LSTM_CONFIG,
-        ModelType.CNN_MATH: CNN_CONFIG["cnn_math"],
+        ModelType.LIGHTGBM: LGB_CONFIG,
+        ModelType.LSTM: LSTM_CONFIG,
+        ModelType.CNN_REG: CNN_CONFIG["cnn_math"],
+        ModelType.TRANSFORMER: TRANSFORMER_CONFIG,
+        ModelType.CDM: CDM_CONFIG,
     }
     return config_map.get(model_type, {})
 

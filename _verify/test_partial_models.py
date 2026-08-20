@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""验证 run_one 支持部分输出模型(lstm_blue仅蓝 / lstm_reds仅红), 及 select_numbers 均值逻辑。
+"""验证 run_one 支持全量输出模型(lstm/cnn_reg/transformer 红蓝双头), 及 select_numbers 均值逻辑。
+
+注: 2026-08-19 重构后 LSTM 三份同源入口(原 lstm_blue/lstm_reds/lstm_all)已合并为
+唯一 lstm 双头, 不再有单侧部分输出模型。故本文件改测 lstm/cnn_reg 的全量形态。
 
 运行: .venv/bin/python -m pytest _verify/test_partial_models.py -q
 """
@@ -32,34 +35,24 @@ def SN():
     return _load("select_numbers", SSQ / "select_numbers.py")
 
 
-def test_run_one_partial_blue(BPP, monkeypatch):
-    """lstm_blue 仅输出蓝球, reds 应为 None。"""
-    import ml.main as M
-    monkeypatch.setattr(M, "run_train", lambda *a, **k: None)
-    # lstm_blue 只返回 all_blue_probs
-    monkeypatch.setattr(M, "run_predict", lambda *a, **k: {"all_blue_probs": [0.1] * 16})
-    reds, blues = BPP.run_one("lstm_blue", None)
-    assert reds is None
-    assert blues is not None and blues.shape == (16,)
-
-
-def test_run_one_partial_red(BPP, monkeypatch):
-    """lstm_reds 仅输出红球, blues 应为 None。"""
-    import ml.main as M
-    monkeypatch.setattr(M, "run_train", lambda *a, **k: None)
-    monkeypatch.setattr(M, "run_predict", lambda *a, **k: {"all_red_probs": [0.1] * 33})
-    reds, blues = BPP.run_one("lstm_reds", None)
-    assert reds is not None and reds.shape == (33,)
-    assert blues is None
-
-
-def test_run_one_both(BPP, monkeypatch):
-    """cnn_math 红蓝全量。"""
+def test_run_one_lstm_both(BPP, monkeypatch):
+    """lstm(合并后) 输出红蓝全量, reds/blues 均非 None。"""
     import ml.main as M
     monkeypatch.setattr(M, "run_train", lambda *a, **k: None)
     monkeypatch.setattr(M, "run_predict",
                         lambda *a, **k: {"all_red_probs": [0.1] * 33, "all_blue_probs": [0.1] * 16})
-    reds, blues = BPP.run_one("cnn_math", None)
+    reds, blues = BPP.run_one("lstm", None)
+    assert reds is not None and reds.shape == (33,)
+    assert blues is not None and blues.shape == (16,)
+
+
+def test_run_one_both_cnn(BPP, monkeypatch):
+    """cnn_reg 红蓝全量。"""
+    import ml.main as M
+    monkeypatch.setattr(M, "run_train", lambda *a, **k: None)
+    monkeypatch.setattr(M, "run_predict",
+                        lambda *a, **k: {"all_red_probs": [0.1] * 33, "all_blue_probs": [0.1] * 16})
+    reds, blues = BPP.run_one("cnn_reg", None)
     assert reds.shape == (33,) and blues.shape == (16,)
 
 
@@ -79,7 +72,7 @@ def test_load_latest_probs_partial_mean(BPP, SN):
             cur.execute(f"DELETE FROM {SN.SCHEMA}.model_predictions")  # 隔离真实数据
         run_at = datetime(2099, 1, 1)
         with conn.cursor() as cur:
-            # t_rf 红蓝全量, t_lstm_blue 仅蓝
+            # t_rf 红蓝全量, t_lstm 仅蓝
             for i in range(1, 34):
                 cur.execute(
                     f"INSERT INTO {SN.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
@@ -92,12 +85,12 @@ def test_load_latest_probs_partial_mean(BPP, SN):
                     (run_at, i, 1.0 / 16))
                 cur.execute(
                     f"INSERT INTO {SN.SCHEMA}.model_predictions(run_at,model,ball_type,num,prob) "
-                    "VALUES (%s,'t_lstm_blue','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
+                    "VALUES (%s,'t_lstm','blue',%s,%s) ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob;",
                     (run_at, i, 2.0 / 16))  # 蓝球第二模型给更高概率
         # 不 commit, 同连接读未提交
         red_mean, blue_mean, _, models = SN.load_latest_probs(conn)
         assert red_mean.shape == (33,) and blue_mean.shape == (16,)
-        # 蓝球应综合 t_rf(1/16) 与 t_lstm_blue(2/16) -> 均值 1.5/16
+        # 蓝球应综合 t_rf(1/16) 与 t_lstm(2/16) -> 均值 1.5/16
         assert abs(blue_mean[0] - 1.5 / 16) < 1e-9
         # 红球仅 t_rf 贡献 -> 1/33
         assert abs(red_mean[0] - 1.0 / 33) < 1e-9

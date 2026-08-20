@@ -9,17 +9,13 @@
 from ml.models.base_model import BaseModel
 from ml.models.rf_model import RandomForestModel
 from ml.models.lgb_model import LightGBMModel
-from ml.models.lstm_model import LSTMBlueModel, LSTMRedModel, LSTMAllModel
+from ml.models.lstm_model import LSTMModel
 from ml.models.cnn_model import CNNMathModel
-from ml.models.set_model import SetRedModel
 
 __all__ = [
     "BaseModel",
     "RandomForestModel",
     "LightGBMModel",
-    "LSTMBlueModel",
-    "LSTMRedModel",
-    "LSTMAllModel",
+    "LSTMModel",
     "CNNMathModel",
-    "SetRedModel",
 ]

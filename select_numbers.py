@@ -3,8 +3,10 @@
 """从 PostgreSQL 读取最新一次模型预测概率，集成生成 5 组双色球候选号码。
 
 逻辑(完全基于 ml/main.py 已训练模型的输出, 不做额外预测):
-  1. 取 PG ssq.model_predictions 中最新 run_at 的 4 个模型概率。
-  2. 红球(1-33)/蓝球(1-16) 分别对各模型概率取均值 -> 集成概率。
+  1. 取 PG ssq.model_predictions 中每个模型各自最新 run_at 的概率(每模型每
+     球种独立取最新, 不要求同一次 run 共享 run_at), 实际覆盖全部已入库模型
+ (当前 6 模型: rf/lightgbm/cnn_reg/lstm/transformer/cdm; 由 batch_predict_pg.MODELS 决定)。
+  2. 红球(1-33)/蓝球(1-16) 分别对"该侧有数据的模型"概率取均值 -> 集成概率。
   3. 红球: 在集成概率上做受控随机加权抽样(softmax 温度), 生成5注,
      每注6个互不相同的号, 并约束奇偶比∈{2:4,3:3,4:2}、大小比(1-16小/17-33大)∈{2:4,3:3,4:2}。
   4. 蓝球: 取集成概率 Top 并结合受控随机, 每注1个。
@@ -32,10 +34,13 @@ import psycopg
 from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
 from wheel import CoverResult, greedy_cover
+# C1 conformal 风险分层(研究简报 2026-08-17 [3], 工程落地 2026-08-19):
+# 把集成概率升级为带理论覆盖率保证的候选集合, 仅作可解释风险分层, 不改变命中率。
+from ml.conformal.conformal_predict import build_from_history as _conformal_build
 
 PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
 SCHEMA = "ssq"
-MODELS = ["lstm_blue", "lstm_reds", "lstm_all", "cnn_math"]
+MODELS = ["rf", "lightgbm", "cnn_reg", "lstm", "transformer", "cdm"]  # 仅文档/兼容用途, 生产以 batch_predict_pg.MODELS 为准
 
 
 def load_latest_probs(conn, method: str = "mean", tau: float = 8000.0):
@@ -141,6 +146,112 @@ def generate(red_mean, blue_mean, groups=5, seed=42):
             "blue_rank": blue_rank[blue],
         })
     return out
+
+
+def build_conformal(conn, alpha: float = 0.90, min_pairs: int = 8):
+    """从 PG 历史预测批次校准 conformal 集合(风险分层, 非预测增益)。
+
+    对齐逻辑: batch_predict_pg 在 data_date 当天预测的是该日期之后的**下一期**
+    开奖号(预测先于开奖), 故每批概率应 vs 该 data_date 之后最早一期开奖。
+    开奖号取 **1.csv**(生产数据源, 永远最新) 而非 draw_history(只读归档, H1 决策下
+    可能滞后), 与管线\"生产路径读 1.csv\"约定一致。
+    每批概率取等权集成(与 load_latest_probs 同口径), 对齐到下一期真实开奖号,
+    调 _conformal_build 校准红/蓝 conformity 阈值。
+
+    返回 {"red": ConformalSet, "blue": ConformalSet, "n_pairs": int} 或 None(样本不足)。
+    诚实声明: 覆盖率保证的是\"集合包含开奖号\"的概率, 不提升命中率(不可能)。
+    """
+    # 1) 拉全部预测批次(按 data_date 升序)
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            SELECT run_at, data_date, model, ball_type, num, prob
+            FROM {SCHEMA}.model_predictions
+            ORDER BY data_date, run_at, model, ball_type, num
+        """)
+        rows = cur.fetchall()
+    if not rows:
+        return None
+
+    # 2) 开奖号取 1.csv(生产数据源, 最新) —— 不在 PG draw_history(可能滞后)
+    import csv as _csv
+    from pathlib import Path
+    csv_path = Path(__file__).resolve().parent / "ml/data/1.csv"
+    draw_by_date = {}
+    if csv_path.exists():
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+            for r in _csv.DictReader(f):
+                try:
+                    ddate = datetime.strptime(r["dDate"], "%Y-%m-%d").date()
+                except (KeyError, ValueError):
+                    continue
+                reds = [int(r[f"Red{i}"]) for i in range(1, 7)]
+                blue = int(r["Blue1"])
+                draw_by_date[ddate] = (reds, blue)
+    if not draw_by_date:
+        return None
+
+    # 组织批次: {(data_date, run_at): {model: {red:33, blue:16}}}
+    from collections import defaultdict
+    batches = defaultdict(lambda: defaultdict(lambda: {"red": np.zeros(33),
+                                                        "blue": np.zeros(16)}))
+    for run_at, data_date, model, btype, num, prob in rows:
+        key = (data_date, run_at)
+        if btype == "red":
+            batches[key][model]["red"][num - 1] = prob
+        else:
+            batches[key][model]["blue"][num - 1] = prob
+
+    # 按 data_date 升序遍历批次, 对齐下期开奖
+    red_hist, blue_hist, red_draws, blue_draws = [], [], [], []
+    for (ddate, _rt) in sorted(batches.keys()):
+        # 下一期 = 比 ddate 晚的最早一期
+        nxt = None
+        for dd in draw_by_date:
+            if dd > ddate:
+                nxt = dd
+                break
+        if nxt is None:
+            continue
+        reds6, blue1 = draw_by_date[nxt]
+        # 等权集成该批有数据的模型
+        bm = batches[(ddate, _rt)]
+        red_models = [m for m in bm if bm[m]["red"].sum() > 0]
+        blue_models = [m for m in bm if bm[m]["blue"].sum() > 0]
+        if not red_models or not blue_models:
+            continue
+        red_prob = np.stack([bm[m]["red"] for m in red_models]).mean(axis=0)
+        blue_prob = np.stack([bm[m]["blue"] for m in blue_models]).mean(axis=0)
+        red_hist.append(red_prob)
+        blue_hist.append(blue_prob)
+        red_draws.append(reds6)
+        blue_draws.append(blue1)
+
+    if len(red_draws) < min_pairs:
+        return None
+
+    cs = _conformal_build(red_hist, blue_hist, red_draws, blue_draws, alpha=alpha)
+    cs["n_pairs"] = len(red_draws)
+    return cs
+
+
+def apply_conformal(cs, red_mean, blue_mean):
+    """给定当前集成概率, 返回 conformal 候选集(风险分层, 不改选号)。"""
+    if cs is None:
+        return None
+    red_set = cs["red"].predict_set(red_mean)
+    blue_set = cs["blue"].predict_set(blue_mean)
+    return {
+        "red_set": red_set,
+        "blue_set": blue_set,
+        "red_summary": _conformal_summarize(cs["red"], red_mean),
+        "blue_summary": _conformal_summarize(cs["blue"], blue_mean),
+        "n_pairs": cs.get("n_pairs", 0),
+    }
+
+
+def _conformal_summarize(cs, prob):
+    from ml.conformal.conformal_predict import summarize_coverage
+    return summarize_coverage(cs, prob)
 
 
 def _popularity_off(reds):
@@ -249,6 +360,10 @@ def main():
     ap.add_argument("--ensemble-tau", type=float, default=8000.0,
                     help="EBMA 温度(仅 --ensemble ebma 生效): 随机过程上模型差异是噪声,"
                          "tau~8000 接近等权, 过小则坍缩到单一模型")
+    ap.add_argument("--no-conformal", action="store_true",
+                    help="关闭 conformal 风险分层候选集输出(默认开启, 仅解释层不改选号)")
+    ap.add_argument("--conformal-alpha", type=float, default=0.90,
+                    help="conformal 目标覆盖率 1-α (默认 0.90)")
     args = ap.parse_args()
 
     conn = psycopg.connect(**PG)
@@ -264,9 +379,21 @@ def main():
 
     groups = generate(red_mean, blue_mean, args.groups, args.seed)
 
+    # C1 conformal 风险分层(仅解释层, 不影响选号)
+    conf = None
+    if not args.no_conformal:
+        conn2 = psycopg.connect(**PG)
+        try:
+            conf = build_conformal(conn2, alpha=args.conformal_alpha)
+        finally:
+            conn2.close()
+
     if args.json:
-        print(json.dumps({"run_at": str(run_at), "groups": groups},
-                         ensure_ascii=False, indent=2))
+        out = {"run_at": str(run_at), "groups": groups}
+        if conf is not None:
+            c = apply_conformal(conf, red_mean, blue_mean)
+            out["conformal"] = c
+        print(json.dumps(out, ensure_ascii=False, indent=2))
         return
 
     print(f"模型集成预测 ({run_at}) | 红球Top8: "
@@ -277,6 +404,17 @@ def main():
         print(f"第{g['group']}组: 红球 {g['red']} + 蓝球 {g['blue']:02d}")
         print(f"       热号(集成概率前8): 红球 {g['hot_reds']} | 蓝球排名 #{g['blue_rank']}")
     print("=" * 56)
+    if conf is not None:
+        c = apply_conformal(conf, red_mean, blue_mean)
+        rs, bs = c["red_summary"], c["blue_summary"]
+        print(f"[Conformal 风险分层] 校准样本={c['n_pairs']}期, α={args.conformal_alpha}")
+        print(f"  红球候选集(大小={len(c['red_set'])}): {c['red_set']}")
+        print(f"  蓝球候选集(大小={len(c['blue_set'])}): {c['blue_set']}")
+        print(f"  红球: {rs['coverage_claim']} | 蓝球: {bs['coverage_claim']}")
+        if c['n_pairs'] < 30:
+            print(f"  注: 校准样本仅 {c['n_pairs']} 期(边际覆盖率保证仍成立, 但经验集合大小估计有噪声; "
+                  f"月度重训积累批次后更稳)")
+        print(f"  注: conformal 集合为理论覆盖率保证(不提升命中率, 仅可解释风险分层)")
     print("注: 以上基于 ML 模型历史概率集成, 仅供娱乐参考, 不保证中奖。")
 
 

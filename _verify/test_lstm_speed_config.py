@@ -27,12 +27,12 @@ def test_lstm_config_epochs_reduced():
 
 
 def test_lstm_all_default_window_fixed():
-    """lstm_all 的 prepare_data 默认 window 应为 128 (不再是 330)。"""
+    """lstm(合并后唯一入口) 的 prepare_data 默认 window 应为 128 (不再是 330)。"""
     L = _load("lstm_model", ROOT / "ml" / "models" / "lstm_model.py")
     import inspect
-    src = inspect.getsource(L.LSTMAllModel.prepare_data)
+    src = inspect.getsource(L.LSTMModel.prepare_data)
     assert "window_size or self.config.get(\"window_size\", 128)" in src, \
-        "lstm_all 默认 window 应改为 128"
+        "lstm 默认 window 应改为 128"
 
 
 def test_train_loop_has_progress_print():

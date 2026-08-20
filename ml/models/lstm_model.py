@@ -54,16 +54,6 @@ def _train_loop(model, train_loader, val_loader, criterion, optimizer, epochs, d
     return {"best_val_loss": best_val_loss, "epochs_trained": epoch + 1}
 
 # ================= 网络结构 =================
-class _LSTMNet(nn.Module):
-    def __init__(self, input_size: int, output_size: int, config: dict):
-        super().__init__()
-        h_size, n_layers = config.get("hidden_size", 64), config.get("num_layers", 2)
-        self.lstm = nn.LSTM(input_size, h_size, n_layers, batch_first=True, dropout=config.get("dropout", 0.2) if n_layers > 1 else 0)
-        self.fc, self.act = nn.Linear(h_size, output_size), nn.Sigmoid()
-    def forward(self, x):
-        _, (h_n, _) = self.lstm(x)
-        return self.act(self.fc(h_n[-1]))
-
 class _HybridLSTM(nn.Module):
     def __init__(self, input_size: int, output_size: int, config: dict):
         super().__init__()
@@ -145,44 +135,16 @@ class _BaseLSTM(BaseModel):
         return self
 
 # ================= 具体模型实现 =================
-class LSTMBlueModel(_BaseLSTM):
-    def __init__(self, model_name="lstm_blue", config=None):
-        cfg = {k.replace("blue_", ""): v for k, v in (config or LSTM_CONFIG).items()}
-        super().__init__(model_name, cfg, _LSTMNet, 16, "lstm_blue.pt")
+class LSTMModel(_BaseLSTM):
+    """唯一 LSTM 入口 (2026-08-19 重构: 合并 lstm_blue/lstm_reds/lstm_all 三份同源入口)。
 
-    def prepare_data(self, df, feature_cols, target_col="Blue1", window_size=None):
-        ws = window_size or self.config.get("window_size", 128)
-        self.feature_cols = feature_cols
-        X_data = df[feature_cols].values
-        X = np.zeros((len(df) - ws, ws, len(feature_cols)), dtype=np.float32)
-        y = np.zeros((len(df) - ws, 16), dtype=np.float32)
-        for i in range(len(df) - ws):
-            X[i] = X_data[i:i + ws]
-            y[i, int(df[target_col].iloc[i + ws]) - 1] = 1.0
-        self.scaler = StandardScaler()
-        return self.scaler.fit_transform(X.reshape(-1, X.shape[-1])).reshape(X.shape), y
-
-class LSTMRedModel(_BaseLSTM):
-    def __init__(self, model_name="lstm_reds", config=None):
-        cfg = {k.replace("red_", ""): v for k, v in (config or LSTM_CONFIG).items()}
-        super().__init__(model_name, cfg, _LSTMNet, 33, "lstm_red.pt")
-
-    def prepare_data(self, df, feature_cols, target_cols=None, window_size=None):
-        ws, target_cols = window_size or self.config.get("window_size", 128), target_cols or RED_COLS
-        self.feature_cols = feature_cols
-        X_data = df[feature_cols].values
-        X = np.zeros((len(df) - ws, ws, len(feature_cols)), dtype=np.float32)
-        y = np.zeros((len(df) - ws, 33), dtype=np.float32)
-        for i in range(len(df) - ws):
-            X[i] = X_data[i:i + ws]
-            for num in df[target_cols].iloc[i + ws].values: y[i, int(num) - 1] = 1.0
-        self.scaler = StandardScaler()
-        return self.scaler.fit_transform(X.reshape(-1, X.shape[-1])).reshape(X.shape), y
-
-class LSTMAllModel(_BaseLSTM):
-    def __init__(self, model_name="lstm_all", config=None):
+    统一用 `_HybridLSTM` 双头网络一次输出红(33)+蓝(16)=49 维概率,
+    经 `predict_split` 拆分为两侧。红球与蓝球在 i.i.d. 下统计独立 (A4 结论),
+    单网络双头与拆两个单头在信息上等价, 合并减少维护面与重训算力。
+    """
+    def __init__(self, model_name="lstm", config=None):
         cfg = {k.replace("all_", ""): v for k, v in (config or LSTM_CONFIG).items()}
-        super().__init__(model_name, cfg, _HybridLSTM, 49, "lstm_all.pt")
+        super().__init__(model_name, cfg, _HybridLSTM, 49, "lstm.pt")
 
     def predict_split(self, X):
         proba = self.predict_proba(X)
