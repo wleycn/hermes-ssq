@@ -65,14 +65,15 @@ def test_append_new_and_idempotent(append_mod, tmp_csv):
 
 
 def test_append_preserves_crlf_and_format(append_mod, tmp_csv):
-    rec = {"dNum": 2026093, "yNum": 2026, "mNum": 8, "dDate": "2026-08-13",
+    # 用未来期号, 不依赖"某期不在库"的易变假设, 也避免覆盖真实最新期
+    rec = {"dNum": 2026999, "yNum": 2026, "mNum": 12, "dDate": "2026-12-31",
            "Red1": 1, "Red2": 2, "Red3": 3, "Red4": 4, "Red5": 5, "Red6": 6, "Blue1": 7}
     append_mod.append_records([rec])
     raw = tmp_csv.read_bytes()
     assert b"\r\n" in raw, "必须保留 CRLF 行尾"
     lines = raw.split(b"\r\n")
     last = lines[-2].decode()
-    assert last.startswith("2026093,"), last
+    assert last.startswith("2026999,"), last
     parts = last.split(",")
     assert len(parts) == 11
     assert all(len(p) == 2 for p in parts[4:]), parts
@@ -81,18 +82,21 @@ def test_append_preserves_crlf_and_format(append_mod, tmp_csv):
 def test_fetch_latest_real(update_mod):
     res = update_mod.fetch_latest()
     assert res is not None, "fetch_latest 应返回最新一期"
-    assert res["dNum"] == 2026093, res
-    assert res["reds"] == [5, 8, 15, 20, 21, 24], res
-    assert res["blue"] == 9, res
-    assert res["dDate"] == "2026-08-13", res
-    assert res["mNum"] == 8, res
+    # 动态断言: 最新期号 >= 2026093 且结构合法(不写死具体期号/号码)
+    assert res["dNum"] >= 2026093, res
+    assert len(res["reds"]) == 6, res
+    assert all(1 <= x <= 33 for x in res["reds"]), res
+    assert 1 <= res["blue"] <= 16, res
+    assert res["dDate"], res
+    assert res["mNum"] in range(1, 13), res
 
 
 def test_cwl_official_source(update_mod):
     """中彩网官方接口应作为权威主源独立可用。"""
     res = update_mod.parse_cwl_latest()
     assert res is not None, "中彩网接口应返回数据"
-    assert res["dNum"] == 2026093, res
-    assert res["reds"] == [5, 8, 15, 20, 21, 24], res
-    assert res["blue"] == 9, res
-    assert res["dDate"] == "2026-08-13", res
+    assert res["dNum"] >= 2026093, res
+    assert len(res["reds"]) == 6, res
+    assert all(1 <= x <= 33 for x in res["reds"]), res
+    assert 1 <= res["blue"] <= 16, res
+    assert res["dDate"], res

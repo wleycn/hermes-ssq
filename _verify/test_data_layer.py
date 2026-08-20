@@ -17,7 +17,21 @@ import pytest
 
 SSQ = Path("/home/hermes/workspace/python/SSQ")
 CSV = SSQ / "ml/data/1.csv"
-EXPECTED_ROWS = 3489
+
+
+def expected_rows() -> int:
+    """动态期望行数 = 1.csv 数据行(总行 - 表头), 数据增长不写死。"""
+    raw = CSV.read_text(encoding="utf-8-sig")
+    return len([l for l in raw.splitlines() if l.strip()]) - 1
+
+
+def expected_last() -> tuple[str, date]:
+    """动态期望末行 = 1.csv 最后一条记录 (dNum, dDate)。"""
+    import csv as _csv
+    with open(CSV, encoding="utf-8-sig", newline="") as f:
+        rows = list(_csv.DictReader(f))
+    last = rows[-1]
+    return last["dNum"], date.fromisoformat(last["dDate"])
 
 
 def _load(name: str, path: Path):
@@ -49,10 +63,10 @@ def schema(conn):
 # --------------------------------------------------------------------------- #
 def test_import_draw_history_count(conn, schema):
     n = schema.import_draw_history(CSV, conn)
-    assert n == EXPECTED_ROWS
+    assert n == expected_rows()
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM ssq.draw_history;")
-        assert cur.fetchone()[0] == EXPECTED_ROWS
+        assert cur.fetchone()[0] == expected_rows()
 
 
 def test_import_draw_history_edges(conn, schema):
@@ -69,7 +83,7 @@ def test_import_draw_history_edges(conn, schema):
         )
         last = cur.fetchone()
     assert first == ("2003001", date(2003, 2, 23))
-    assert last == ("2026093", date(2026, 8, 13))
+    assert last == expected_last()
 
 
 # --------------------------------------------------------------------------- #

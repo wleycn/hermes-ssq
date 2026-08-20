@@ -7,7 +7,7 @@
   1. 多源轮询最新开奖：中彩网官方接口(主源/最权威) + EastMoney(列表) + 网易(单期页)。
   2. 中彩网为权威主源，其余两源交叉校验/兜底；取交叉一致的最新一期。
   3. 增量写入 1.csv：尾部查重 + 单期幂等（依赖 append_ssq.append_records）。
-  4. 通过 stdlib smtplib 直发邮件（绕过 hermes 网关坏掉的 email 通道）。
+  4. 邮件统一由 send_email.py 中枢发送 (To=126 + Cc=163 由 .env 兜底)。
 
 退出码：0=成功(无论有无新增) | 2=参数错误 | 1=运行异常
 """
@@ -16,17 +16,20 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import smtplib
+import subprocess
 import sys
 from datetime import datetime
-from email.header import Header
-from email.mime.text import MIMEText
 from pathlib import Path
 
 # 让脚本能 import 同目录的 append_ssq
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import append_ssq as store  # noqa: E402
+
+# 项目根(SSQ), 供 import reconcile_picks
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -223,28 +226,28 @@ def read_env() -> dict:
     return vars_
 
 
-def send_email(subject: str, body: str, to_addr: str | None = None) -> bool:
-    env = read_env()
-    host = env.get("EMAIL_SMTP_HOST", "smtp.163.com")
-    port = int(env.get("EMAIL_SMTP_PORT", "465"))
-    user = env.get("EMAIL_ADDRESS") or env.get("EMAIL_USER", "")
-    pwd = env.get("EMAIL_PASSWORD", "")
-    to = to_addr or env.get("EMAIL_HOME_ADDRESS") or user
-    if not pwd or not to:
-        print("[warn] 邮件凭据缺失，跳过发送")
-        return False
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["From"] = user
-    msg["To"] = to
-    msg["Subject"] = Header(subject, "utf-8")
+def send_email(subject: str, body: str, to_addr: str | None = None,
+               html: bool = False) -> bool:
+    """统一走中枢 CLI: 默认收件 (To=126 + Cc=163); 显式 to_addr 时覆盖.
+    html=True 时按 HTML 正文发送(命中核对表用)。"""
+    from pathlib import Path as _P
+    cli = _P.home() / ".hermes/skills/email/send-email/send_email.py"
+    tmp = _P("/tmp/ssq_update_body.html" if html else "/tmp/ssq_update_body.txt")
+    tmp.write_text(body, encoding="utf-8")
+    cmd = [sys.executable, str(cli), "--subject", subject, "--body-file", str(tmp)]
+    if html:
+        cmd += ["--html"]
+    if to_addr:
+        cmd += ["--to", to_addr]
     try:
-        with smtplib.SMTP_SSL(host, port, timeout=30) as s:
-            s.login(user, pwd)
-            s.send_message(msg)
-        print(f"✓ 邮件已发送至 {to}")
+        cp = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if cp.returncode != 0:
+            print(f"✗ 邮件发送失败: {cp.stderr.strip()[:200]}")
+            return False
+        print(cp.stdout.strip())
         return True
     except Exception as e:
-        print(f"✗ 邮件发送失败: {e!r}")
+        print(f"✗ 邮件发送异常: {e!r}")
         return False
 
 
@@ -287,13 +290,30 @@ def main() -> int:
                 f"红球 {' '.join(f'{x:02d}' for x in latest['reds'])}  蓝球 {latest['blue']:02d}")
         print(f"[result] 已新增 {added} 期: {line}")
         subject = f"🎯 双色球第{latest['dNum']}期开奖结果"
-        body = (f"双色球自动检查更新\n时间: {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-                f"新增期号: 第{latest['dNum']}期 ({latest['dDate']})\n"
-                f"红球: {' '.join(f'{x:02d}' for x in latest['reds'])}\n"
-                f"蓝球: {latest['blue']:02d}\n\n"
-                f"已写入: {store.CSV_PATH}\n(数据以官方开奖公告为准)")
+        body = (f"双色球自动检查更新<br>时间: {datetime.now():%Y-%m-%d %H:%M:%S}<br><br>"
+                f"新增期号: 第{latest['dNum']}期 ({latest['dDate']})<br>"
+                f"红球: <b>{' '.join(f'{x:02d}' for x in latest['reds'])}</b><br>"
+                f"蓝球: <b>{latest['blue']:02d}</b><br><br>"
+                f"已写入: {store.CSV_PATH}<br>(数据以官方开奖公告为准)")
+        # 追加"与推荐号码核对"块(读 PG predicted_picks, 只读; 失败不影响开奖入库/发信)
+        try:
+            import reconcile_picks as rc
+            conn = rc.connect()
+            try:
+                block = rc.build_reconcile_block(
+                    conn, str(latest["dNum"]), latest["reds"], latest["blue"])
+            finally:
+                conn.close()
+            if block:
+                body += "<br><br>" + block
+            else:
+                body += (f"<br><hr>⚠️ 第{latest['dNum']}期在 predicted_picks 中"
+                         "无推荐记录(可能上次发预测未成功), 无法核对推荐命中。")
+        except Exception as e:
+            print(f"[warn] 推荐核对失败(不影响开奖入库): {e}")
+            body += "<br><hr><p>推荐核对暂不可用, 仅报告开奖结果。</p>"
         if not args.no_email:
-            send_email(subject, body, args.to)
+            send_email(subject, body, args.to, html=True)
     else:
         print(f"[result] 期 {latest['dNum']} 已存在，跳过")
         if not args.no_email:
