@@ -65,6 +65,36 @@ def run_evidence(n_surrogates: int = 30) -> str:
         lines.append(f"  {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
     lines.append("")
 
+    # 2b) 08-22 补落地探针 (可见图/LZ/RQA/MSE/Rényi/DCCA)
+    #     适用性: 可见图/RQA 用蓝球与和值(i.i.d. 序列); 红全量有组合约束伪影
+    from ml.probes.visibility_probe import run_visibility_probe
+    from ml.probes.lz_probe import run_lz_probe
+    from ml.probes.rqa_probe import run_rqa_probe
+    from ml.probes.mse_probe import run_mse_probe
+    from ml.probes.renyi_probe import run_renyi_probe
+    from ml.probes.dcca_probe import run_dcca_probe
+    sums = np.array([sum(r) for r in reds], dtype=float)
+    lines.append("[2b] 08-22 补落地探针 (可见图/LZ/RQA/MSE/Rényi/DCCA):")
+    for label, seq in [("蓝球", blue_arr), ("和值", sums)]:
+        lines.append(f"  --- {label} ---")
+        for r in run_visibility_probe(seq, n_surrogates=15):
+            lines.append(f"  可见图 {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+        for r in run_lz_probe(seq, n_surrogates=15):
+            lines.append(f"  LZ {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+        for r in run_rqa_probe(seq, n_surrogates=15):
+            lines.append(f"  RQA {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+        for r in run_mse_probe(seq):
+            lines.append(f"  MSE {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+    # Rényi 只对类别序列(蓝球)跑; 和值是连续量非类别
+    for r in run_renyi_probe(blue_arr, n_classes=16):
+        lines.append(f"  Rényi {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+    lines.append("  DCCA (红球位1 vs 位2):")
+    p0 = np.array([r[0] for r in reds], dtype=float)
+    p1 = np.array([r[1] for r in reds], dtype=float)
+    for r in run_dcca_probe(p0, p1, n_surrogates=15):
+        lines.append(f"    {r.name}: value={r.value:.4f} {r.verdict} {r.detail}")
+    lines.append("")
+
     # 3) 校准诊断 (用历史频率+噪声模拟模型概率, 对真实开奖评估 Brier/ECE)
     #    口径同 docs/steiner_walkforward_2026-08-22.md (W=500 前窗 + 高斯噪声)
     rng = np.random.default_rng(42)
