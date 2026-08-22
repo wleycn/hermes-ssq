@@ -1,0 +1,24 @@
+=== SSQ 真实数据探针证据 2026-08-22 10:55 ===
+数据源: ml/data/1.csv, 共 3492 期, 红球展平 20952 点, 蓝球 3492 点
+
+[1] MF-DFA 多重分形 (红球展平序列 / 蓝球序列):
+  红球 mfdfa_h2: value=0.4732 RANDOM z=-1.49, p=0.194; 白噪声期望 0.5
+  红球 mfdfa_dh: value=0.0015 RANDOM z=-1.01, p=0.355; 单分形期望 0
+  蓝球 mfdfa_h2: value=0.4934 RANDOM z=0.02, p=0.968; 白噪声期望 0.5
+  蓝球 mfdfa_dh: value=0.0497 RANDOM z=1.01, p=0.290; 单分形期望 0
+
+[2] RMT 随机矩阵谱 (33 号码 × 200 期窗口, surrogate n=30):
+  rmt_max: value=0.1498 RANDOM z=-0.81, λ+/界=11.9843, q=6.061
+  rmt_spike: value=0.0000 RANDOM p=1.000 (surrogate 经验分位), 期望 0 尖峰
+
+[3] 校准诊断 (模拟模型输出 vs 真实开奖, n=2991):
+  红球 brier: 0.02945 
+  红球 ece: 0.0 n_bins=10, 越小越接近诚实
+  红球 isotonic_delta: 0.000277 ≈0 说明校准无操作空间(i.i.d. 均匀输出预期)
+  蓝球 brier: 0.059076 
+  蓝球 ece: 0.00422 n_bins=10, 越小越接近诚实
+  蓝球 isotonic_delta: 0.002623 ≈0 说明校准无操作空间(i.i.d. 均匀输出预期)
+
+判据: MF-DFA H(2)≈0.5 且 Δh≈0 → RANDOM; RMT |z|<2 → RANDOM;
+      校准 ECE≈0.007 且 isotonic≈0 → i.i.d. 下校准无操作空间。
+结论预期: 全部 FLAT/RANDOM (与决策记录 2026-08-22 条目一致)。

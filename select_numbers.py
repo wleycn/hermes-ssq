@@ -12,11 +12,16 @@
   4. 蓝球: 取集成概率 Top 并结合受控随机, 每注1个。
   5. 输出每注的选取依据(命中哪些模型的高概率号)。
 
+可选后处理层(默认开启, 均不提升命中率, 仅概率诚实化/风险分层):
+  - James-Stein 收缩(--no-shrink 关闭): 均值集成后向均匀先验收缩, 对抗过拟合噪声;
+  - Conformal 候选集(--no-conformal 关闭): 带理论覆盖率保证的风险分层解释。
+
 用法:
   .venv/bin/python select_numbers.py                 # 生成5组并打印
   .venv/bin/python select_numbers.py --groups 5 --seed 42
   .venv/bin/python select_numbers.py --wheel         # 旋转矩阵覆盖模式(红球池 Top18)
   .venv/bin/python select_numbers.py --wheel --pool-size 15 --max-notes 30 --no-popularity
+  .venv/bin/python select_numbers.py --no-shrink     # 关闭收缩(与旧行为一致)
 """
 from __future__ import annotations
 import argparse
@@ -364,6 +369,11 @@ def main():
                     help="关闭 conformal 风险分层候选集输出(默认开启, 仅解释层不改选号)")
     ap.add_argument("--conformal-alpha", type=float, default=0.90,
                     help="conformal 目标覆盖率 1-α (默认 0.90)")
+    ap.add_argument("--no-shrink", action="store_true",
+                    help="关闭 James-Stein 收缩(默认开启: 均值集成后向均匀先验收缩,"
+                         "对抗模型过拟合噪声; 不提升命中率, 概率更诚实)")
+    ap.add_argument("--shrink-alpha", type=float, default=1.0,
+                    help="James-Stein 收缩强度系数 ∈[0,1]; 1=标准(默认), 0=不收缩")
     args = ap.parse_args()
 
     conn = psycopg.connect(**PG)
@@ -372,6 +382,15 @@ def main():
             conn, method=args.ensemble, tau=args.ensemble_tau)
     finally:
         conn.close()
+
+    # P1 James-Stein 收缩后处理(研究简报 2026-08-22 [1], 落地 2026-08-22):
+    # 均值集成后向均匀先验收缩, 本质是对模型在随机数据上学到的偏离均匀的
+    # 噪声做正则化。与 EBMA(模型权重融合)正交。预期命中率无显著变化(FLAT),
+    # 价值在概率诚实化与可辩护性。
+    if not args.no_shrink:
+        from ml.shrinkage import shrink_red_blue
+        red_mean, blue_mean = shrink_red_blue(red_mean, blue_mean,
+                                              sigma2=1.0, alpha=args.shrink_alpha)
 
     if args.wheel:
         _run_wheel(red_mean, blue_mean, args, run_at)

@@ -1,10 +1,12 @@
 # 双色球预测系统 (SSQ)
 
-基于机器学习与深度学习的双色球彩票号码预测系统。通过分析历史开奖数据，使用多种模型（随机森林、LightGBM、LSTM、CNN）预测下一期可能出现的号码及其概率，并将各模型概率集成后生成候选号码、通过邮件推送。
+基于机器学习与深度学习的双色球彩票号码预测系统。通过分析历史开奖数据，使用多种模型（随机森林、LightGBM、LSTM、CNN、Transformer、CDM）预测下一期可能出现的号码及其概率，并将各模型概率集成后生成候选号码、通过邮件推送。
+
+> 最后更新: 2026-08-22 | 维护人: Cheese (Hermes)
 
 > ⚠️ 本系统仅供技术学习与研究，彩票中奖为随机事件，预测结果不构成任何投注建议。
 >
-> 🔬 **诚实结论（历史回测坐实）**：双色球为独立均匀随机过程，任何选号策略的期望收益 < 成本。wheel 30 注 ROI 历史回测 **-96.15%**（wheel_ledger 口径 B+C: 固定30注 vs 纯随机30注对 3489 期核算; ML 策略 ROI 约 -75%）。本系统的价值是"统计严谨 + 诚实检验 + 自动化流程"，不是"能赚钱"。
+> 🔬 **诚实结论（历史回测坐实）**：双色球为独立均匀随机过程，任何选号策略的期望收益 < 成本。wheel 30 注 ROI 历史回测 **-96.15%**（wheel_ledger 口径 B+C: 固定30注 vs 纯随机30注对截至 2026-08-14 的 3489 期核算; ML 策略 ROI 约 -75%）。本系统的价值是"统计严谨 + 诚实检验 + 自动化流程"，不是"能赚钱"。
 
 ## 项目结构
 
@@ -22,6 +24,8 @@ SSQ/
 ├── send_ssq_picks.py             # 组装中文邮件正文 → smtplib 直发（旧入口，保留）
 ├── retrain_pipeline.py           # 一键重训+验证+发邮件（封装 batch_predict_pg + 外部脚本）
 ├── wheel.py                      # 旋转矩阵覆盖设计（贪心 4-子集覆盖）
+├── reconcile_picks.py            # 开奖推荐命中核对：predicted_picks 逐组比对 → 开奖信 HTML 块（2026-08-20 新增）
+├── evaluate.py                   # walk-forward 回测框架（MC 基线 + keep/rollback 判定，特征开关 FEATURE_TOGGLES）
 ├── _verify/                      # pytest 验证套件
 ├── analysis/                     # 历史分析与探索脚本
 │   ├── wheel_ledger.py           # wheel ROI 模拟账本（口径 B+C 实跑）
@@ -32,23 +36,27 @@ SSQ/
     ├── config.py                 # 全局配置（路径、超参数、模型类型）
     ├── ensemble.py               # EBMA 轻量融合模块（零依赖，softmax of 历史 log-likelihood）
     ├── popularity.py             # 冷号加权（6 规则, λ=0.3, 5 组模式用）
-    ├── spectral.py               # 蓝球 3 门随机性测试器（21 个函数）
+    ├── spectral.py               # 蓝球 3 门随机性测试器（17 个函数）
     ├── spectral_red.py           # 红球 3 路径随机性测试器
     ├── spectral_chaos.py         # 混沌/相空间重构检验器（Takens+Lyapunov+替代检验）
-    ├── probes/                   # A 层随机性探针套件(2026-08-19, 纯 numpy/scipy)
+    ├── probes/                   # A 层随机性探针套件(2026-08-19~22, 纯 numpy/scipy, 14 家族已饱和)
     │   ├── surrogate_probe.py    # 替代数据元验证(RS/AAFT/IAAFT)——随机性检验金标准
     │   ├── nist_probe.py         # NIST SP 800-22 适用子集(频率/游程/串行, 含功效 caveats)
     │   ├── ordinal_probe.py      # 排列熵(Amigó i.i.d. 检验)——序数动力学维度
-    │   └── transfer_entropy.py   # 跨球位传递熵(50 置换 surrogate 显著性)——验证逐球独立
+    │   ├── transfer_entropy.py   # 跨球位传递熵(50 置换 surrogate 显著性)——验证逐球独立
+    │   ├── mfdfa_probe.py        # MF-DFA 多重分形(长程记忆/幂律尺度, 08-20)——H≈0.5 单分形 FLAT
+    │   ├── rmt_probe.py          # RMT 随机矩阵特征值谱(08-20, 33号码×200期窗口, surrogate 判据)
+    │   └── calibration_probe.py  # 概率校准诊断(Brier/ECE/isotonic, 08-22, 仅监控不进选号)
     ├── conformal/                # C 层不确定性量化 UQ(2026-08-19, 仅 numpy)
     │   ├── conformal_predict.py  # Conformal 集合覆盖率(带理论保证的候选集, 解释层)
     │   └── edl_probe.py          # EDL 证据深度学习(先验实验: 证据量在 i.i.d. 退化→仅解释)
+    ├── shrinkage.py              # James-Stein 收缩后处理(08-22): 集成概率向均匀先验收缩(默认开启, --no-shrink 关闭)
     ├── data/
     │   ├── dataset.py            # 数据加载与预处理
     │   ├── spider.py             # 历史数据爬虫（东方财富网，备用）
     │   ├── update_ssq.py         # 三源抓取更新主入口（中彩网+EastMoney+网易）→ 发开奖信(含推荐命中核对)
     │   └── append_ssq.py         # 幂等追加单行到 1.csv（CRLF 保真）
-    ├── reconcile_picks.py        # 开奖推荐命中核对：predicted_picks 逐组比对 → 开奖信 HTML 块（2026-08-20 新增）
+    ├── decode.py                 # constrained_decode（beam 约束解码，带退化兜底）
     ├── features/feature_engineer.py  # 特征工程（统计/频率/熵/马尔可夫等）
     ├── models/                   # 模型实现（rf/lightgbm/lstm/cnn_reg/transformer/cdm）
     ├── utils/helpers.py          # 通用工具函数
@@ -73,7 +81,7 @@ source .venv/bin/activate       # Linux/macOS
 pip install -r requirements.txt
 ```
 
-依赖清单（10 个包）：
+依赖清单（11 个包）：
 
 | 包 | 版本 | 用途 |
 |---|---|---|
@@ -92,7 +100,7 @@ pip install -r requirements.txt
 ## 核心流程
 
 ```
-1.csv (3489期历史)
+1.csv (3492期历史)
    │  update_ssq.py 三源抓取更新（中彩网官方API + EastMoney + 网易交叉校验）
    │  ⚠️ 仅在开奖日（周二/四/日 22:00）由 cron 自动触发
    ▼
@@ -162,7 +170,7 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 建表与导入：
 
 ```bash
-.venv/bin/python pg_schema.py    # 幂等：建表 + 导入 draw_history(3489行) + 加 data_date 列
+.venv/bin/python pg_schema.py    # 幂等：建表 + 导入 draw_history(3492行) + 加 data_date 列
 ```
 
 `data_date` 列类型为 `DATE NOT NULL`，每次预测写入北京当天日期（规避 PG 会话时区 Etc/UTC 偏差）。
@@ -178,16 +186,18 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 
 ### 5. 自动化（cron）
 
-通过 Hermes cron 配置，三个任务全部 local-only（结果存文件，不重复发通知，脚本自带 163 邮件）：
+通过 Hermes cron 配置，三个 Hermes 任务 + 一个系统 crontab 任务。deliver 全部 local-only（结果存文件，不重复发通知，脚本自带 163 邮件；仅月度重训为 `--no-email`）：
 
-| 任务 | 时间 | 命令 | 作用 |
-|------|------|------|------|
-| 抓开奖 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件(含推荐命中核对) |
-| 发下期预测 | 开奖日(二/四/日) 22:15 | `python ~/.hermes/scripts/ssq_send_picks.py` | 自动算下期+生成推荐+发邮件 |
-| 月度重训 | 每月1号 03:00 | `python retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
+| 任务 | 类型 | 时间 | 命令 | 作用 |
+|------|------|------|------|------|
+| 抓开奖 | no_agent 脚本 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件(含推荐命中核对) |
+| 发下期预测 | agent cron（挂 ssq-lottery-pipeline skill，已 pin 模型） | 开奖日(二/四/日) 22:15 | Hermes CLI 调 skill | 自动算下期+生成推荐+发邮件 |
+| 月度重训 | agent cron（已 pin 模型） | 每月1号 03:00 | `retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
+| 预测方法研究 | 系统 crontab（非 Hermes job） | 每天 04:00 | `run_research.py` | 调 Hermes CLI -z 多源研究 → reports/YYYY-MM-DD.md → 163 邮件 |
 
 > 抓开奖与发预测间隔 15 分钟（22:00→22:15），确保本期已入库后再生成下期预测。
 > 月度重训：Rocky 要求"模型一个月重训一次"，重训后 load_latest_probs 自动取每模型最新概率。
+> 权威 cron 布局见 `research/ssq-methods/ARCHITECTURE.md` §1.2（本表为摘要）。
 
 **首次真实运行**：2026-08-16（周日）22:00/22:15。
 
@@ -224,12 +234,15 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 
 定位：随机性检验器（非预测器），用正交统计方法反复检验"开奖序列是否真随机"。任一发现结构即推翻 i.i.d. 假设、可解锁新预测方向；当前全部 FLAT（无结构）。
 
-| 探针 | 方法 | 实测结论（3491 期真实数据） |
+| 探针 | 方法 | 实测结论（3492 期真实数据） |
 |------|------|------------------------------|
 | surrogate_probe | RS/AAFT/IAAFT 替代数据 + z 分数 | 9/9 检验 \|z\|<2 → RANDOM（干净，元验证金标准） |
 | nist_probe | NIST SP 800-22 子集（频率/游程/串行） | 谨慎子集；naive 自然数编码在频率/游程/串行上误报 NONRANDOM（类别型序列需先白化），频谱已由 spectral.py 覆盖 |
 | ordinal_probe | 排列熵 + Amigó χ² i.i.d. 检验 | 排列熵≈0.98（≈1）→ RANDOM；Amigó χ² 对单位置序列误报（边际非均匀，测错原假设），以排列熵为准 |
 | transfer_entropy | 跨球位传递熵 + 50 置换 surrogate 显著性 | **INDEPENDENT，max_te≈0 → 实证支撑"逐球独立建模"假设（i.i.d.）**，关闭唯一开放缺口 |
+| mfdfa_probe | 多重分形去趋势波动分析（广义 Hurst 谱） | 红 H(2)=0.473 / 蓝 0.493，Δh≈0，surrogate \|z\|<2 → RANDOM（无长程记忆、单分形） |
+| rmt_probe | 随机矩阵理论特征值谱（33 号码 × 200 期窗口） | max_ratio z=-0.81 → RANDOM（无超越随机的跨号码联合结构；MP 上界为渐近理论，以 surrogate 相对判据为准） |
+| calibration_probe | 概率校准诊断（Brier / ECE / isotonic） | 均匀输出 ECE≈0.007、isotonic≈0 → 校准在 i.i.d. 下无操作空间（仅监控，不进选号） |
 
 > ⚠️ **方法论诚实声明**：NIST / ordinal-χ² 的"NONRANDOM"是**编码/原假设误设导致的伪阳性**，不是真结构。它们揭示的真实边界是——类别型彩票序列（自然数 1..33）不能直接套用于为均匀比特流设计的检验。NIST 进生产性价比低，仅留作方法论参考。
 
@@ -335,7 +348,8 @@ lstm,blue,7,0.085432
 ## 注意事项
 
 - 本系统仅供技术学习与研究，彩票中奖为随机事件，预测结果不构成任何投注建议
-- 历史回测坐实：双色球为独立均匀随机过程，wheel 30 注 ROI 约 **-70% ~ -75%**（长期必亏）。请勿投入超出承受能力的资金
+- 历史回测坐实：双色球为独立均匀随机过程，wheel 30 注 ROI 约 **-96.15%**（固定 30 注 B+C 口径，wheel_ledger 实测；ML 池 wheel 约 -75%）（长期必亏）。请勿投入超出承受能力的资金
+- **Kelly 理性注码结论（2026-08-22 研究简报 [5]）**：用 Kelly 公式 f*=(bp−q)/b 代入双色球真实参数（一等奖 p≈1/17,721,088），即便奖池滚到 10 亿，f*≈5.45e-8（≈0.0000054%）；综合全部奖级期望 EV<0 → Kelly 自身给出 **f*≤0，理性结论是不加码、不投注**。"每期固定小额娱乐性投注"是唯一可辩护的博弈论立场——这是数学结论，不是口号（注：简报初稿曾误算 2.7%，2026-08-22 复核修正）
 - `ml/legacy/` 目录为早期探索代码，已归档隔离，不参与生产流程
 - 模型文件、预测结果、日志均不入版本控制（见 `.gitignore`）
 - `data_date` 写入使用 Python 侧北京日期（`datetime.now().date()`），不依赖 PG 的 `CURRENT_DATE`（服务器时区为 Etc/UTC，差 8 小时）
@@ -352,7 +366,7 @@ lstm,blue,7,0.085432
 |------|--------|
 | **双色球 (SSQ)** | 中国福利彩票：每期从 1–33 **不重复**选 6 个红球 + 从 1–16 选 1 个蓝球。一等奖要 6+1 全中，组合数是 C(33,6)×16 ≈ **1772 万**，所以一等奖概率 ≈ 1/1772 万（相当于连续抛 24 次硬币全正面）。二等奖 6+0 也极难，三/四/五/六等奖门槛递减。本系统**不承诺中奖**，只研究"能否比纯随机略好一点"——结论是：不能。 |
 | **预测 / 回测 / 训练** | 三个不同阶段：①**训练**=用历史数据让模型学规律（调参数）；②**预测**=用训好的模型算下期概率；③**回测**=假装回到过去，用当时的模型预测当时未知的开奖，检验"如果当年这么买，能赚吗"。回测才是检验方法有没有用的试金石，不是看训练时多准。 |
-| **1.csv** | 历史开奖数据表（3491+ 期，每行一期）。**生产系统的唯一权威数据源**——所有模型、检验都读它，永远以它为准。类比：这是"原始账本"，后续所有分析都是它的副本或加工。 |
+| **1.csv** | 历史开奖数据表（3492 期，每行一期）。**生产系统的唯一权威数据源**——所有模型、检验都读它，永远以它为准。类比：这是"原始账本"，后续所有分析都是它的副本或加工。 |
 | **draw_history** | 1.csv 在 PostgreSQL 里的**镜像备份**。**只读归档**，默认不自动同步（手动跑 `pg_schema.py` 才更新），所以可能比 1.csv 旧。设计上故意如此（见 H1 决策）——防止自动同步把脏数据写进归档。 |
 | **model_predictions** | 6 个模型对每个号码"觉得多可能中奖"的概率表，存 PG。每模型每球种（红33/蓝16）独立记最新一批（用 `run_at` 时间戳区分）。类比：6 个评委各给 33 个红球 + 16 个蓝球打分，打分表就在这里。 |
 | **predicted_picks** | 集成概率后**实际选出的号码**落库表（top5 组 + wheel 30 注），带期号、流行度、seed，用于日后复盘"当初选了啥、中没中"。 |
@@ -416,7 +430,7 @@ lstm,blue,7,0.085432
 | **传递熵 (Transfer Entropy)** | 衡量"球 A 的变化能否预测球 B"。本系统测出≈0 → 证明**各球位相互独立**（逐球独立建模是对的）。这是本项目最关键的实证结论之一（A4）。 |
 | **相空间重构 / Lyapunov** | 混沌理论工具：把一维序列"展开"成多维轨迹，看是否有混沌吸引子、最大 Lyapunov 指数是否 >0（有混沌）。实测无混沌（排序伪影已排除）。 |
 | **白化 (whitening)** | 把相关性/偏差去掉，让数据变成标准随机（均值 0、协方差单位阵）。NIST 测彩票前需要先白化自然数编码，否则伪影干扰。 |
-| **功效 (power)** | 检验"真有结构时能发现它"的能力。样本少→功效低→即使有结构也可能测不出（FLAT 可能是"没测出来"而非"真没有"）。本系统 3491 期对多数检验够用，但对某些 NIST 子项仍偏少，结论带这个 caveat。 |
+| **功效 (power)** | 检验"真有结构时能发现它"的能力。样本少→功效低→即使有结构也可能测不出（FLAT 可能是"没测出来"而非"真没有"）。本系统 3492 期对多数检验够用，但对某些 NIST 子项仍偏少，结论带这个 caveat。 |
 
 ### 不确定性量化（UQ）——"不但给答案，还告诉你答案多不靠谱"
 
