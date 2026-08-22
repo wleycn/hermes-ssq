@@ -44,7 +44,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 |---|---|---|---|---|
 | `246a519bce0b` | 双色球开奖检查+入库+发邮件 | 开奖日(二/四/日) 22:00 | update_ssq.py (no_agent) | 权威核实开奖号 → 1.csv + 发邮件；**draw_history 不自动同步**（update_ssq.py 不写 PG，需另行 `pg_schema.py` 手动同步，2026-08-16 doc 审核 H1） |
 | `ced57f0994d8` | SSQ 发下期预测 | 开奖日 22:15 | 挂 ssq-lottery-pipeline skill | 生成预测+邮件 |
-| `98164fe6c0d6` | SSQ 月度重训 | 每月1号 03:00 | retrain_pipeline.py --no-email | 全量重训 6 模型 + 概率入库（内部调 batch_predict_pg.py --retrain） |
+| `98164fe6c0d6` | SSQ 月度重训 | 每月1号 03:00 | retrain_pipeline.py --no-email | 全量重训 6 模型 + 概率入库（内部调 batch_predict_pg.py --retrain）+ **探针证据重跑**(2026-08-22 起: 随机性月度监控, 探针体系饱和关闭后仍每月复查漂移, 产出 analysis/results/probe_evidence_*.txt) |
 | （系统 crontab，非 Hermes job：`/var/spool/cron/crontabs/hermes`） | SSQ 预测方法研究（周6/7） | 每周六/日 04:00 | run_research.py | 调 Hermes CLI -z 做多源研究 → reports/YYYY-MM-DD.md → 163 邮件（prompt 已强制先读本架构文档第 3 节）。2026-08-22 由"每日"降频为"每周 2 次"(Rocky 拍板: SSQ 研究降频, 方向转向 fin-risk 迁移)。⚠️ 修改此任务须用 docker root 操作 `/var/spool/cron/crontabs/hermes`(hermes 用户无写权限, `crontab` 命令被拒) |
 
 - deliver 全部 local-only：通知走脚本自带 smtplib 163 邮件，**不加微信冗余通知**（Rocky 厌恶无效通知）

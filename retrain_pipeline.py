@@ -13,9 +13,10 @@
   - 重训可能 10-20 分钟, 建议后台运行
 
 用法:
-  .venv/bin/python retrain_pipeline.py                 # 重训全部 + 发邮件(下一期)
+  .venv/bin/python retrain_pipeline.py                 # 重训全部 + 探针证据重跑 + 发邮件(下一期)
   .venv/bin/python retrain_pipeline.py --period 2026094 --seed 2026094
-  .venv/bin/python retrain_pipeline.py --no-email      # 只重训+验证, 不发邮件
+  .venv/bin/python retrain_pipeline.py --no-email      # 只重训+验证+探针证据, 不发邮件
+  .venv/bin/python retrain_pipeline.py --no-probe      # 跳过探针证据重跑
   .venv/bin/python retrain_pipeline.py --check-only    # 只验证当前 PG 模型覆盖
 """
 from __future__ import annotations
@@ -90,11 +91,37 @@ def send_email(period: str, seed: int) -> None:
         cwd=str(ROOT), check=True)
 
 
+def run_probe_evidence(n_surrogates: int = 30) -> Path:
+    """重跑探针证据(随机性监控): 调 analysis/probe_evidence.py, 结果落盘。
+
+    探针体系 2026-08-22 宣布饱和关闭后, 不再新增探针, 但**每月随重训
+    重跑一次证据**——监控"摇奖机随机性是否随时间漂移"(如设备更换/
+    数据异常)。产出 analysis/results/probe_evidence_YYYY-MM-DD.txt,
+    与历史证据对比可发现漂移。
+
+    Args:
+        n_surrogates: surrogate 数量(默认 30, 与月度监控口径一致)。
+    Returns:
+        生成的证据文件路径。
+    """
+    script = ROOT / "analysis" / "probe_evidence.py"
+    if not script.exists():
+        raise FileNotFoundError(f"证据脚本不存在: {script}")
+    subprocess.run(
+        [str(ROOT / ".venv" / "bin" / "python"), str(script),
+         "--n-surrogates", str(n_surrogates)],
+        cwd=str(ROOT), check=True)
+    from datetime import datetime
+    return ROOT / "analysis" / "results" / f"probe_evidence_{datetime.now():%Y-%m-%d}.txt"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--period", default="2026094", help="期号")
     ap.add_argument("--seed", type=int, default=2026094, help="生成 seed")
     ap.add_argument("--no-email", action="store_true", help="只重训+验证, 不发邮件")
+    ap.add_argument("--no-probe", action="store_true",
+                    help="跳过探针证据重跑(默认开启: 每月重训时同步重跑随机性监控)")
     ap.add_argument("--check-only", action="store_true", help="只验证当前 PG 模型覆盖")
     args = ap.parse_args()
 
@@ -109,20 +136,30 @@ def main():
             print(f"[中止] 邮件脚本缺失: {SEND_SCRIPT}")
             sys.exit(1)
 
-    print(f"[1/3] 重训全部模型 (batch_predict_pg.py)...")
+    print(f"[1/4] 重训全部模型 (batch_predict_pg.py)...")
     secs = run_retrain()
     print(f"      重训完成, 耗时 {secs:.1f}s")
 
-    print(f"[2/3] 验证模型覆盖...")
+    print(f"[2/4] 验证模型覆盖...")
     cov = check_coverage()
     if not verify_all_models(cov):
-        print("[警告] 模型覆盖不完整, 仍继续发邮件(集成会自动跳过缺失模型)")
+        print("[警告] 模型覆盖不完整, 仍继续(集成会自动跳过缺失模型)")
+
+    if not args.no_probe:
+        print(f"[3/4] 探针证据重跑(随机性月度监控)...")
+        try:
+            ev_path = run_probe_evidence(n_surrogates=30)
+            print(f"      证据落盘: {ev_path}")
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            print(f"[警告] 探针证据重跑失败(不影响重训/发邮件): {e}")
+    else:
+        print(f"[3/4] --no-probe 指定, 跳过探针证据重跑")
 
     if args.no_email:
-        print("[3/3] --no-email 指定, 跳过发邮件")
+        print(f"[4/4] --no-email 指定, 跳过发邮件")
         return
 
-    print(f"[3/3] 生成 {args.period} 推荐 + 发邮件...")
+    print(f"[4/4] 生成 {args.period} 推荐 + 发邮件...")
     send_email(args.period, args.seed)
     print("[done] 重训+发邮件流程完成")
 

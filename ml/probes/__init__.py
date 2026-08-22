@@ -14,6 +14,7 @@
 - mse_probe       : P1 多尺度样本熵（熵家族延伸, 08-20 简报 08-22 补落地）
 - renyi_probe     : P1 Rényi 广义熵谱（熵家族延伸, 08-22 简报 08-22 补落地）
 - dcca_probe      : P1 去趋势交叉相关分析（跨序列依赖, 08-20 简报 08-22 补落地）
+- tda_probe       : P1 持久同调/拓扑数据分析（代数拓扑家族, 08-20 简报 08-22 补落地, 依赖 ripser）
 """
 from ml.probes.surrogate_probe import (
     make_surrogates,
