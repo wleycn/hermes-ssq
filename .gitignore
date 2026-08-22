@@ -29,6 +29,7 @@ analysis/results/full_run.log
 ml/saved_models/
 ml/outputs/
 ml/logs/
+research/logs/
 
 # Trae IDE 自动生成
 .trae/
