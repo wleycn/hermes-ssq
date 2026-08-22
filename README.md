@@ -186,18 +186,21 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 
 ### 5. 自动化（cron）
 
-通过 Hermes cron 配置，三个 Hermes 任务 + 一个系统 crontab 任务。deliver 全部 local-only（结果存文件，不重复发通知，脚本自带 163 邮件；仅月度重训为 `--no-email`）：
+通过 Hermes cron 配置三个 Hermes 任务 + 一个**系统 crontab**任务（非 Hermes job）。deliver 全部 local-only（结果存文件，不重复发通知，脚本自带 163 邮件；仅月度重训为 `--no-email`）：
 
 | 任务 | 类型 | 时间 | 命令 | 作用 |
 |------|------|------|------|------|
-| 抓开奖 | no_agent 脚本 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件(含推荐命中核对) |
-| 发下期预测 | agent cron（挂 ssq-lottery-pipeline skill，已 pin 模型） | 开奖日(二/四/日) 22:15 | Hermes CLI 调 skill | 自动算下期+生成推荐+发邮件 |
-| 月度重训 | agent cron（已 pin 模型） | 每月1号 03:00 | `retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
-| 预测方法研究 | 系统 crontab（非 Hermes job） | 每天 04:00 | `run_research.py` | 调 Hermes CLI -z 多源研究 → reports/YYYY-MM-DD.md → 163 邮件 |
+| 抓开奖 | Hermes no_agent 脚本 | 开奖日(二/四/日) 22:00 | `python ml/data/update_ssq.py` | 三源抓取+入库+发开奖邮件(含推荐命中核对) |
+| 发下期预测 | Hermes agent cron（挂 ssq-lottery-pipeline skill，已 pin 模型） | 开奖日(二/四/日) 22:15 | Hermes CLI 调 skill | 自动算下期+生成推荐+发邮件 |
+| 月度重训 | Hermes agent cron（已 pin 模型） | 每月1号 03:00 | `retrain_pipeline.py --no-email` | 重训6模型(不发邮件, 发预测自动用新概率) |
+| 预测方法研究 | **系统 crontab**（非 Hermes job） | 每周六/日 04:00 | `run_research.py` | 调 Hermes CLI -z 多源研究 → reports/YYYY-MM-DD.md → 163 邮件 |
 
-> 抓开奖与发预测间隔 15 分钟（22:00→22:15），确保本期已入库后再生成下期预测。
-> 月度重训：Rocky 要求"模型一个月重训一次"，重训后 load_latest_probs 自动取每模型最新概率。
-> 权威 cron 布局见 `research/ssq-methods/ARCHITECTURE.md` §1.2（本表为摘要）。
+> ⚠️ **研究任务（系统 crontab）位置与修改方法**（2026-08-22 教训：曾在 /etc 与 Hermes jobs.json 搜不到就误判"任务不存在"）：
+> - **文件**：`/var/spool/cron/crontabs/hermes`（用户级 crontab，属主 hermes:hermes，权限 600）
+> - **当前内容**：`0 4 * * 6,7 cd /home/hermes/workspace/research/ssq-methods && /home/hermes/workspace/python/SSQ/.venv/bin/python run_research.py >> logs/cron.log 2>&1`（2026-08-22 由每日降频为周6/7，Rocky 拍板）
+> - **查看/修改**：hermes 用户对 `/var/spool/cron` 无写权限、`crontab` 命令被拒（no_new_privs）→ **必须用 docker root**：`docker run --rm -v /var/spool:/var/spool alpine:latest sh -c 'cat /var/spool/cron/crontabs/hermes'`（先删旧文件再写新文件，sticky 位阻止覆盖）
+> - **日志**：`research/ssq-methods/logs/cron.log`（研究任务自身输出）
+> - 权威 cron 布局见 `research/ssq-methods/ARCHITECTURE.md` §1.2（本表为摘要）
 
 **首次真实运行**：2026-08-16（周日）22:00/22:15。
 
