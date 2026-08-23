@@ -1,14 +1,14 @@
-=== SSQ 真实数据探针证据 2026-08-22 12:56 ===
+=== SSQ 真实数据探针证据 2026-08-22 15:23 ===
 数据源: ml/data/1.csv, 共 3492 期, 红球展平 20952 点, 蓝球 3492 点
 
 [1] MF-DFA 多重分形 (红球展平序列 / 蓝球序列):
-  红球 mfdfa_h2: value=0.4732 RANDOM z=-1.36, p=0.273; 白噪声期望 0.5
-  红球 mfdfa_dh: value=0.0015 RANDOM z=-0.88, p=0.273; 单分形期望 0
-  蓝球 mfdfa_h2: value=0.4934 RANDOM z=-0.04, p=1.000; 白噪声期望 0.5
-  蓝球 mfdfa_dh: value=0.0497 RANDOM z=1.56, p=0.182; 单分形期望 0
+  红球 mfdfa_h2: value=0.4732 RANDOM z=-1.49, p=0.194; 白噪声期望 0.5
+  红球 mfdfa_dh: value=0.0015 RANDOM z=-1.01, p=0.355; 单分形期望 0
+  蓝球 mfdfa_h2: value=0.4934 RANDOM z=0.02, p=0.968; 白噪声期望 0.5
+  蓝球 mfdfa_dh: value=0.0497 RANDOM z=1.01, p=0.290; 单分形期望 0
 
-[2] RMT 随机矩阵谱 (33 号码 × 200 期窗口, surrogate n=10):
-  rmt_max: value=0.1498 RANDOM z=-0.45, λ+/界=11.9843, q=6.061
+[2] RMT 随机矩阵谱 (33 号码 × 200 期窗口, surrogate n=30):
+  rmt_max: value=0.1498 RANDOM z=-0.81, λ+/界=11.9843, q=6.061
   rmt_spike: value=0.0000 RANDOM p=1.000 (surrogate 经验分位), 期望 0 尖峰
 
 [2b] 08-22 补落地探针 (可见图/LZ/RQA/MSE/Rényi/DCCA):
