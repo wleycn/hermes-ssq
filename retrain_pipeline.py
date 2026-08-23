@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# CRON 绑定: 壳=~/.hermes/scripts/retrain_pipeline.py  cron job=98164fe6c0d6 (SSQ 月度重训)
+# 本文件是逻辑真身; 改这里即生效, 勿改壳里的副本
 """SSQ 重训 + 发邮件 固化流程 (Rocky 2026-08-14 指示 A+B)。
 
 流程:

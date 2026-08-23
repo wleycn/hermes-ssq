@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# CRON 绑定: 壳=~/.hermes/scripts/append_ssq.py  cron job=246a519bce0b (经 update_ssq 间接触发)
+# 本文件是逻辑真身; 改这里即生效, 勿改壳里的副本
 """
 安全地向 1.csv 追加双色球开奖记录（纯标准库，保留 CRLF 格式 + 尾部查重）。
 

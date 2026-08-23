@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# CRON 绑定: 壳=~/.hermes/scripts/update_ssq.py  cron job=246a519bce0b (双色球开奖检查+入库+发邮件)
+# 本文件是逻辑真身; 改这里即生效, 勿改壳里的副本
 """
 双色球开奖记录 多源轮询更新器（cron 调用 / 手动调用）。
 
