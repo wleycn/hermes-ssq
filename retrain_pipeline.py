@@ -33,8 +33,9 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 import psycopg
+from ml.pg_conn import pg_dict
 
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 SCHEMA = "ssq"
 EXPECTED_MODELS = ["cnn_reg", "lightgbm", "lstm", "rf", "transformer", "cdm"]  # 6 模型全量(2026-08-19 收敛: 删 lstm_blue/lstm_reds, 改名 lgbm→lightgbm/cnn_math→cnn_reg/lstm_all→lstm/transformer_all→transformer)
 SEND_SCRIPT = Path.home() / ".hermes" / "scripts" / "ssq_send_picks.py"

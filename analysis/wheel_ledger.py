@@ -131,7 +131,8 @@ def main():
 
     # 加载真实模型概率(08-13 run) 作为 wheel 池子来源
     import psycopg
-    PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+    from ml.pg_conn import pg_dict
+    PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
     with psycopg.connect(**PG) as conn:
         red_mean, blue_mean, run_at, models = load_latest_probs(conn)
     print(f"模型概率来源: run_at={run_at}, 模型={models}")

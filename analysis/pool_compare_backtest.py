@@ -39,7 +39,9 @@ POOL_SIZE = 18
 N_RANDOM_TRIALS = 200
 RANDOM_SEED = 2026
 
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+from ml.pg_conn import pg_dict
+
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 
 PRIZE = {
     (6, 1): 5_000_000, (6, 0): 100_000, (5, 1): 3_000,

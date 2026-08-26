@@ -233,7 +233,7 @@ def send_email(subject: str, body: str, to_addr: str | None = None,
     """统一走中枢 CLI: 默认收件 (To=126 + Cc=163); 显式 to_addr 时覆盖.
     html=True 时按 HTML 正文发送(命中核对表用)。"""
     from pathlib import Path as _P
-    cli = _P.home() / ".hermes/skills/email/send-email/send_email.py"
+    cli = _P.home() / "workspace/ng/skills/common/send-email/send_email.py"
     tmp = _P("/tmp/ssq_update_body.html" if html else "/tmp/ssq_update_body.txt")
     tmp.write_text(body, encoding="utf-8")
     cmd = [sys.executable, str(cli), "--subject", subject, "--body-file", str(tmp)]
@@ -287,42 +287,72 @@ def main() -> int:
     }
     added, skipped = store.append_records([rec])
 
-    if added:
-        line = (f"第{latest['dNum']}期 ({latest['dDate']}) 开奖: "
-                f"红球 {' '.join(f'{x:02d}' for x in latest['reds'])}  蓝球 {latest['blue']:02d}")
-        print(f"[result] 已新增 {added} 期: {line}")
-        subject = f"🎯 双色球第{latest['dNum']}期开奖结果"
-        body = (f"双色球自动检查更新<br>时间: {datetime.now():%Y-%m-%d %H:%M:%S}<br><br>"
-                f"新增期号: 第{latest['dNum']}期 ({latest['dDate']})<br>"
-                f"红球: <b>{' '.join(f'{x:02d}' for x in latest['reds'])}</b><br>"
-                f"蓝球: <b>{latest['blue']:02d}</b><br><br>"
-                f"已写入: {store.CSV_PATH}<br>(数据以官方开奖公告为准)")
-        # 追加"与推荐号码核对"块(读 PG predicted_picks, 只读; 失败不影响开奖入库/发信)
+    # 写库 ssq.draw_history（幂等 upsert，失败不影响 CSV 入库，但须可见便于排障）
+    try:
+        import db_draw as db
+        conn = db.connect()
         try:
-            import reconcile_picks as rc
-            conn = rc.connect()
-            try:
-                block = rc.build_reconcile_block(
-                    conn, str(latest["dNum"]), latest["reds"], latest["blue"])
-            finally:
-                conn.close()
-            if block:
-                body += "<br><br>" + block
-            else:
-                body += (f"<br><hr>⚠️ 第{latest['dNum']}期在 predicted_picks 中"
-                         "无推荐记录(可能上次发预测未成功), 无法核对推荐命中。")
-        except Exception as e:
-            print(f"[warn] 推荐核对失败(不影响开奖入库): {e}")
-            body += "<br><hr><p>推荐核对暂不可用, 仅报告开奖结果。</p>"
-        if not args.no_email:
-            send_email(subject, body, args.to, html=True)
+            db.upsert_draw(conn, rec)
+        finally:
+            conn.close()
+        print(f"[db] 已 upsert 期 {rec['dNum']} 到 ssq.draw_history")
+    except Exception as e:
+        # M2(2026-08-26 修复): 原静默吞掉异常 → PG 落后 CSV 无感知;
+        # 现升到 stderr(被 cron 输出日志捕获)并标记[ALERT], 不阻断 CSV/发信主流程
+        import sys
+        print(f"[ALERT] 写库 ssq.draw_history 失败(不影响 CSV/发信, 但 PG 已落后 CSV, 需排查): {e}",
+              file=sys.stderr)
+
+    # 统一从库读最新一期组邮件（无论新增/已存在都带号码）
+    latest_draw = None
+    try:
+        import db_draw as db
+        conn = db.connect()
+        try:
+            latest_draw = db.get_latest_draw(conn)
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[warn] 读库最新开奖失败, 回退用内存 latest: {e}")
+        latest_draw = {"dNum": latest["dNum"], "dDate": latest["dDate"],
+                       "reds": latest["reds"], "blue": latest["blue"]}
+
+    if not latest_draw:
+        print("[warn] 库与内存均无可用开奖数据，跳过发信")
+        return 0
+
+    line = (f"第{latest_draw['dNum']}期 ({latest_draw['dDate']}) 开奖: "
+            f"红球 {' '.join(f'{x:02d}' for x in latest_draw['reds'])}  蓝球 {latest_draw['blue']:02d}")
+    if added:
+        print(f"[result] 已新增 {added} 期: {line}")
     else:
-        print(f"[result] 期 {latest['dNum']} 已存在，跳过")
-        if not args.no_email:
-            send_email("双色球开奖检查 - 已是最新",
-                       f"{datetime.now():%Y-%m-%d %H:%M:%S}\n"
-                       f"最新期 {latest['dNum']} 已在 CSV 中，无需更新。",
-                       args.to)
+        print(f"[result] 期 {latest_draw['dNum']} 已是最新（同步发信）: {line}")
+
+    subject = f"🎯 双色球第{latest_draw['dNum']}期开奖结果"
+    body = (f"双色球自动检查更新<br>时间: {datetime.now():%Y-%m-%d %H:%M:%S}<br><br>"
+            f"最新期号: 第{latest_draw['dNum']}期 ({latest_draw['dDate']})<br>"
+            f"红球: <b>{' '.join(f'{x:02d}' for x in latest_draw['reds'])}</b><br>"
+            f"蓝球: <b>{latest_draw['blue']:02d}</b><br><br>"
+            f"已写入: {store.CSV_PATH} + ssq.draw_history<br>(数据以官方开奖公告为准)")
+    # 追加"与推荐号码核对"块(读 PG predicted_picks, 只读; 失败不影响开奖入库/发信)
+    try:
+        import reconcile_picks as rc
+        conn = rc.connect()
+        try:
+            block = rc.build_reconcile_block(
+                conn, str(latest_draw["dNum"]), latest_draw["reds"], latest_draw["blue"])
+        finally:
+            conn.close()
+        if block:
+            body += "<br><br>" + block
+        else:
+            body += (f"<br><hr>⚠️ 第{latest_draw['dNum']}期在 predicted_picks 中"
+                     "无推荐记录(可能上次发预测未成功), 无法核对推荐命中。")
+    except Exception as e:
+        print(f"[warn] 推荐核对失败(不影响开奖入库): {e}")
+        body += "<br><hr><p>推荐核对暂不可用, 仅报告开奖结果。</p>"
+    if not args.no_email:
+        send_email(subject, body, args.to, html=True)
     return 0
 
 

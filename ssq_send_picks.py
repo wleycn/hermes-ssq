@@ -94,7 +94,7 @@ def db_upsert(conn, period, run_at, mode, group_idx, reds, blue,
     conn.commit()
 
 
-SEND_EMAIL_CLI = Path.home() / ".hermes/skills/email/send-email/send_email.py"
+SEND_EMAIL_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email.py"
 
 
 def send_email(subject, html_body):
@@ -196,7 +196,8 @@ def main():
         print(f"[auto-next] 最新已开奖期={period}的上一期, 推算下一期={period}"
               f"(本期开奖日期={latest_date})")
 
-    conn = psycopg.connect("host=127.0.0.1 port=5432 dbname=hermes user=hermes password=hermes123")
+    from ml.pg_conn import connect
+    conn = connect()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
     with conn.cursor() as cur:
         cur.execute(DDL)
         conn.commit()

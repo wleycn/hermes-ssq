@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import psycopg
+from ml.pg_conn import pg_dict
 
 from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
@@ -43,7 +44,7 @@ from wheel import CoverResult, greedy_cover
 # 把集成概率升级为带理论覆盖率保证的候选集合, 仅作可解释风险分层, 不改变命中率。
 from ml.conformal.conformal_predict import build_from_history as _conformal_build
 
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 SCHEMA = "ssq"
 MODELS = ["rf", "lightgbm", "cnn_reg", "lstm", "transformer", "cdm"]  # 仅文档/兼容用途, 生产以 batch_predict_pg.MODELS 为准
 
@@ -158,8 +159,8 @@ def build_conformal(conn, alpha: float = 0.90, min_pairs: int = 8):
 
     对齐逻辑: batch_predict_pg 在 data_date 当天预测的是该日期之后的**下一期**
     开奖号(预测先于开奖), 故每批概率应 vs 该 data_date 之后最早一期开奖。
-    开奖号取 **1.csv**(生产数据源, 永远最新) 而非 draw_history(只读归档, H1 决策下
-    可能滞后), 与管线\"生产路径读 1.csv\"约定一致。
+    开奖号取 **1.csv**(生产数据源, 永远最新) 而非 draw_history(update_ssq 已自动 upsert 同步,
+    但 1.csv 仍是权威源), 与管线"生产路径读 1.csv"约定一致。
     每批概率取等权集成(与 load_latest_probs 同口径), 对齐到下一期真实开奖号,
     调 _conformal_build 校准红/蓝 conformity 阈值。
 
@@ -177,7 +178,7 @@ def build_conformal(conn, alpha: float = 0.90, min_pairs: int = 8):
     if not rows:
         return None
 
-    # 2) 开奖号取 1.csv(生产数据源, 最新) —— 不在 PG draw_history(可能滞后)
+    # 2) 开奖号取 1.csv(生产数据源, 最新) —— draw_history 已由 update_ssq 自动同步, 但 1.csv 为权威源
     import csv as _csv
     from pathlib import Path
     csv_path = Path(__file__).resolve().parent / "ml/data/1.csv"

@@ -3,7 +3,7 @@
 """batch_predict_pg.py 的 PG 写入集成测试(真实连接本地 PG, 验证 SQL 语法/约束)。
 
 运行: .venv/bin/python -m pytest _verify/test_pg_integration.py -q
-需: 本地 docker Postgres 在线 (127.0.0.1:5432 hermes/hermes123)
+需: 本地 PG 在线(凭证从 ~/.hermes/.env 的 DATABASE_URL 读取, 不再硬编码)
 """
 from __future__ import annotations
 import importlib.util
@@ -13,7 +13,8 @@ import pytest
 SRC = Path("/home/hermes/workspace/python/SSQ/batch_predict_pg.py")
 ROOT = SRC.parent
 
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+from ml.pg_conn import pg_dict
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读
 
 
 @pytest.fixture

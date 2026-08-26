@@ -11,7 +11,8 @@ import pandas as pd
 
 SSQ = Path("/home/hermes/workspace/python/SSQ")
 CSV = SSQ / "ml/data/1.csv"
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+from ml.pg_conn import pg_dict
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读
 
 ev = {}
 

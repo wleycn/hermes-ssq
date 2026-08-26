@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import psycopg
+from ml.pg_conn import pg_dict
 
 # 性能铁律(2026-08-15 多agent独立验收确认):
 #   torch.set_num_threads 是进程级全局设置, 必须在入口统一设 4。
@@ -39,8 +40,9 @@ except Exception:
 import ml.main as M
 from ml.config import RED_COLS, BLUE_COLS
 from pg_schema import ensure_model_predictions_data_date
+from ml.pg_conn import purge_stale_predictions
 
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 SCHEMA = "ssq"
 MODELS = ["rf", "lightgbm", "cnn_reg", "lstm", "transformer", "cdm"]
 
@@ -166,6 +168,14 @@ def main():
         if reds is not None: sides.append(f"红和={reds.sum():.2f}")
         if blues is not None: sides.append(f"蓝和={blues.sum():.2f}")
         print(f"     完成, 耗时 {time.time()-t0:.1f}s, {' '.join(sides)}")
+
+    # M1: 生成/入库完成后清理超期 model_predictions(默认 30 天, draw_history 不受影响)
+    try:
+        n_del = purge_stale_predictions(conn)
+        if n_del:
+            print(f"     已清理超期 model_predictions: {n_del} 行")
+    except Exception as e:
+        print(f"     [warn] 清理 model_predictions 失败(不影响主流程): {e}")
 
     conn.close()
     print(f"\n[done] {datetime.now():%Y-%m-%d %H:%M:%S} 模型概率已写入 PG schema={SCHEMA}")

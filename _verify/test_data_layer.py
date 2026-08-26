@@ -44,8 +44,8 @@ def _load(name: str, path: Path):
 
 @pytest.fixture
 def conn():
-    c = psycopg.connect(host="127.0.0.1", port=5432, user="hermes",
-                        password="hermes123", dbname="hermes")
+    from ml.pg_conn import connect
+    c = connect()
     yield c
     c.close()
 

@@ -8,7 +8,8 @@
 import psycopg
 from datetime import date
 
-PG = "postgresql://hermes:hermes123@127.0.0.1:5432/hermes"
+from ml.pg_conn import get_database_url
+PG = get_database_url()  # 凭证从 ~/.hermes/.env 读
 
 # —— 2026093 开奖（中彩网权威核实）——
 ISSUE = "2026093"

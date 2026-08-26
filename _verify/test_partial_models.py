@@ -64,8 +64,8 @@ def test_load_latest_probs_partial_mean(BPP, SN):
     """
     import psycopg
     from datetime import datetime
-    conn = psycopg.connect(host="127.0.0.1", port=5432, user="hermes",
-                           password="hermes123", dbname="hermes")
+    from ml.pg_conn import connect
+    conn = connect()
     try:
         BPP.ensure_schema(conn)  # ensure_schema 在 batch_predict_pg 中
         with conn.cursor() as cur:

@@ -25,7 +25,7 @@
 数据源: 中彩网(权威,需特定Referer) + EastMoney + 网易
   │  (append_ssq.py / update_ssq.py 多源轮询+幂等入库, CRLF)
   ▼
-ml/data/1.csv  ──►  PG ssq.draw_history (只读归档镜像, 全量保留)
+ml/data/1.csv  ──►  PG ssq.draw_history (权威归档镜像, 全量保留; update_ssq 增量 upsert 自动写入, pg_schema 整表重建兜底)
   │ (ml.main.load_data)
   ▼
 模型层: rf / lightgbm / cnn_reg / lstm / transformer / cdm
@@ -42,7 +42,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 
 | job_id | 名称 | 调度 | 脚本 | 职责 |
 |---|---|---|---|---|
-| `246a519bce0b` | 双色球开奖检查+入库+发邮件 | 开奖日(二/四/日) 22:00 | update_ssq.py (no_agent) | 权威核实开奖号 → 1.csv + 发邮件；**draw_history 不自动同步**（update_ssq.py 不写 PG，需另行 `pg_schema.py` 手动同步，2026-08-16 doc 审核 H1） |
+| `246a519bce0b` | 双色球开奖检查+入库+发邮件 | 开奖日(二/四/日) 22:00 | update_ssq.py (no_agent) | 权威核实开奖号 → 1.csv + **自动 upsert 写 ssq.draw_history**(db_draw.upsert, 幂等, 失败不影响 CSV/发信) + 发邮件；pg_schema.py 仍可作整表重建兜底(2026-08-26 拍板: draw_history 改自动写, 原 H1"只读/手动同步"已废止) |
 | `ced57f0994d8` | SSQ 发下期预测 | 开奖日 22:15 | 挂 ssq-lottery-pipeline skill | 生成预测+邮件 |
 | `98164fe6c0d6` | SSQ 月度重训 | 每月1号 03:00 | retrain_pipeline.py --no-email | 全量重训 6 模型 + 概率入库（内部调 batch_predict_pg.py --retrain）+ **探针证据重跑**(2026-08-22 起: 随机性月度监控, 探针体系饱和关闭后仍每月复查漂移, 产出 analysis/results/probe_evidence_*.txt) |
 | （系统 crontab，非 Hermes job：`/var/spool/cron/crontabs/hermes`） | SSQ 预测方法研究（周6/7） | 每周六/日 04:00 | run_research.py | 调 Hermes CLI -z 做多源研究 → reports/YYYY-MM-DD.md → 163 邮件（prompt 已强制先读本架构文档第 3 节）。2026-08-22 由"每日"降频为"每周 2 次"(Rocky 拍板: SSQ 研究降频, 方向转向 fin-risk 迁移)。⚠️ 修改此任务须用 docker root 操作 `/var/spool/cron/crontabs/hermes`(hermes 用户无写权限, `crontab` 命令被拒) |
@@ -71,13 +71,13 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 ### 1.4 关键约定
 - 号码 **1-indexed**（_sample_red/_sample_blue 已返回 1-indexed，复用不再 +1）
 - PG 写入 UPSERT：`ON CONFLICT (run_at,model,ball_type,num) DO UPDATE SET prob=EXCLUDED.prob`
-- 保留策略：model_predictions 30 天；draw_history 全量（绝不清理）
+- 保留策略：model_predictions 30 天；draw_history 全量（绝不清理）；draw_history 由 update_ssq 自动 upsert 写入，pg_schema 整表重建为兜底
 - 邮件 env 变量：`EMAIL_ADDRESS` / `EMAIL_PASSWORD`（~/.hermes/.env）；cron 邮件 no_agent + smtplib 直发（deliver:email 通道坏）
 - 模型目录 `ml/saved_models/`：月度 cron 重训后持久保存，平时 load 复用
 
 ## 2. 项目现状（一句话版）
 
-- **数据**：`ml/data/1.csv` 3492 期（2003 至今，中彩网权威 + EastMoney/网易多源轮询，幂等入库，CRLF），PG `ssq.draw_history` 全量归档（只读镜像）
+- **数据**：`ml/data/1.csv` 3494 期（2003 至今，中彩网权威 + EastMoney/网易多源轮询，幂等入库，CRLF），PG `ssq.draw_history` 全量归档（update_ssq 自动 upsert 写入，pg_schema 整表重建兜底）
 - **管线**：6 模型 → PG `ssq.model_predictions` → 均值集成 → `select_numbers` 受控随机加权抽样 → top5 组 + wheel 30 注 → 开奖日 22:15 邮件
 - **回测基建**：`evaluate.py`（walk-forward + 蒙特卡洛基线 N=1000 + keep/rollback 显著性判定），特征开关 `FEATURE_TOGGLES`
 - **探针**：`ml/spectral.py`（蓝球三关）/ `ml/spectral_red.py`（红球三路径）随机性检验器——定位是**检验器非预测器**

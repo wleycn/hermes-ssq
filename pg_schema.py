@@ -18,9 +18,10 @@ from pathlib import Path
 
 import pandas as pd
 import psycopg
+from ml.pg_conn import pg_dict
 
 SCHEMA = "ssq"
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 
 # 1.csv 表头 11 列顺序
 DRAW_COLUMNS = ["dNum", "yNum", "mNum", "dDate", "Red1", "Red2", "Red3",

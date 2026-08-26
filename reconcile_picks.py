@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from ml.pg_conn import pg_dict
+
 # 与 select_numbers.py 同款 PG 连接(SSQ 项目本地 PG)
-PG = dict(host="127.0.0.1", port=5432, user="hermes", password="hermes123", dbname="hermes")
+PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 
 
 def connect() -> Any:
