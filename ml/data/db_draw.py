@@ -11,31 +11,35 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ml.pg_conn import pg_dict
+from ml.pg_conn import connect as pg_connect, pg_dict
 
 PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 
 
 def connect() -> Any:
-    """建立 PG 连接（类型明确的工厂，避免 **dict 混合类型）。"""
-    import psycopg
-    return psycopg.connect(host=PG["host"], port=PG["port"], user=PG["user"],
-                           password=PG["password"], dbname=PG["dbname"])
+    """建立 PG 连接（复用 ml.pg_conn.connect 工厂，统一凭证来源）。"""
+    return pg_connect()
 
 
 def upsert_draw(conn: Any, rec: dict) -> None:
-    """幂等写一行开奖到 ssq.draw_history（同 dnum 先删后插）。
+    """幂等写一行开奖到 ssq.draw_history（单条 ON CONFLICT DO UPDATE，原子 upsert）。
 
+    L2 修复(2026-08-26): 原 DELETE+INSERT 两步提交非原子, 崩溃会丢行;
+    改为单条 UPSERT, 依赖 PK dNum 保证幂等与原子性。
     rec 字段: dNum(int), yNum, mNum, dDate('YYYY-MM-DD'),
               Red1..Red6(int), Blue1(int)。
     """
     dnum = str(rec["dNum"]).strip()
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM ssq.draw_history WHERE dnum=%s", (dnum,))
         cur.execute(
-            """INSERT INTO ssq.draw_history
+            f"""INSERT INTO ssq.draw_history
                (dnum, ynum, mnum, ddate, red1, red2, red3, red4, red5, red6, blue1)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (dnum) DO UPDATE SET
+                   ynum=EXCLUDED.ynum, mnum=EXCLUDED.mnum, ddate=EXCLUDED.ddate,
+                   red1=EXCLUDED.red1, red2=EXCLUDED.red2, red3=EXCLUDED.red3,
+                   red4=EXCLUDED.red4, red5=EXCLUDED.red5, red6=EXCLUDED.red6,
+                   blue1=EXCLUDED.blue1""",
             (dnum,
              int(rec["yNum"]), int(rec["mNum"]),
              rec["dDate"],

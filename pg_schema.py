@@ -3,8 +3,8 @@
 """SSQ PostgreSQL 数据层辅助：开奖表 draw_history 建表/导入 + model_predictions.data_date 列迁移。
 
 设计要点（依据 handoff_arch.json ADR-1..8 与实测修正）：
-  - ssq.draw_history：1.csv 的全量镜像归档，11 列（dNum CHAR(7) 保留前导零），PK dNum，
-    索引 ix_draw_history_ddate；永不清理（ADR-1）。
+  - ssq.draw_history：1.csv 的全量镜像归档，11 列（dNum VARCHAR(8) 保留前导零），
+    PK dNum，索引 ix_draw_history_ddate；永不清理（ADR-1）。
   - ssq.model_predictions：新增 data_date DATE，NOT NULL DEFAULT CURRENT_DATE（兜底），
     存量行用 run_at 经 Asia/Shanghai 时区转换回填为北京日期（修正 PG Etc/UTC 的 CURRENT_DATE 偏差）。
   - 所有“今天/日期”语义统一以 Python 侧 datetime.now()（服务器=Asia/Shanghai）为准，
@@ -26,7 +26,7 @@ PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 # 1.csv 表头 11 列顺序
 DRAW_COLUMNS = ["dNum", "yNum", "mNum", "dDate", "Red1", "Red2", "Red3",
                 "Red4", "Red5", "Red6", "Blue1"]
-EXPECTED_ROWS = 3488  # 不含表头
+EXPECTED_ROWS = 3494  # 不含表头; 仅 __main__ 打印期望值, 非硬约束(数据增长会自动超过)
 
 
 def get_conn() -> psycopg.Connection:
@@ -43,7 +43,7 @@ def ensure_draw_history_schema(conn: psycopg.Connection) -> None:
         cur.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA};")
         cur.execute(f"""
         CREATE TABLE IF NOT EXISTS {SCHEMA}.draw_history (
-            dNum   CHAR(7)    NOT NULL,
+            dNum   VARCHAR(8)  NOT NULL,
             yNum   SMALLINT   NOT NULL,
             mNum   SMALLINT   NOT NULL,
             dDate  DATE       NOT NULL,
@@ -60,6 +60,11 @@ def ensure_draw_history_schema(conn: psycopg.Connection) -> None:
         cur.execute(
             f"CREATE INDEX IF NOT EXISTS ix_draw_history_ddate "
             f"ON {SCHEMA}.draw_history (dDate);"
+        )
+        # L3 修复(2026-08-26): 旧表 dNum 为 CHAR(7), 跨 8 位期号年代会截断;
+        # 幂等 ALTER 让现有表也升级为 VARCHAR(8)(CREATE TABLE 用 IF NOT EXISTS 不会改已有表)
+        cur.execute(
+            f"ALTER TABLE {SCHEMA}.draw_history ALTER COLUMN dNum TYPE VARCHAR(8);"
         )
         conn.commit()
 

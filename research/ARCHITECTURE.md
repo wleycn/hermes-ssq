@@ -192,3 +192,10 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 - wheel/popularity: skill references/wheel-popularity.md
 - 混沌/8 模型/回测/cron: skill references/models-8-chaos-backtest-cron-2026-08-15.md
 - 误命中/伪科学负面清单: Lottery Ticket Hypothesis（剪枝理论非彩票）、Lotto Champ 类 AI 软件营销文、"100% 准确率"宣称
+
+## 8. 架构审查遗留项处理记录（2026-08-26）
+
+- 独立架构审查子代理报告: `research/REVIEW_2026-08-26.md`（H1/H2/M1/M2/M3 + L1–L8）。
+- 已闭环: **H2**(统一 `.env` DATABASE_URL, 消除 9 处 hardcode)、**H1**(draw_history 文档改"自动 upsert 写入")、**M1**(model_predictions 30 天自动清理)、**M2**(写库失败 stderr [ALERT] 不静默吞)、**M3**(清陈旧注释)、**L2**(db_draw.upsert_draw 改原子 ON CONFLICT UPSERT)、**L3**(dNum CHAR(7)→VARCHAR(8) + 幂等 ALTER)、**L4**(select_numbers 复用 batch_predict_pg.MODELS 单一真相源)、**L6**(EXPECTED_ROWS→3494)、**L7**(README 3492→3494)。
+- 判定为非缺陷、仅文档注记: **L1**(无连接池, cron 低频负载可接受, 已通过 pg_conn.connect 统一入口)、**L5**(retrain 经 scripts 壳中转, 功能正常)、**L8**(cron 98164fe6c0d6 实为 skill 包装, 措辞差异非缺陷)。
+- **L5 说明**: retrain_pipeline 当前经 `~/.hermes/scripts/ssq_send_picks.py` 壳 → 项目根真身, 归一后壳已透传, 无漂移; 不改为直调以免破坏 cron 绑定。

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 REPORT = Path(__file__).resolve().parent / "SSQ工程化改进_final_report.md"
-SEND_EMAIL_CLI = Path.home() / ".hermes/skills/email/send-email/send_email.py"
+SEND_EMAIL_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email.py"
 SUBJECT = "【SSQ 双色球预测项目】工程化改进与对比测试最终报告 (Hermes Agent / 奇思)"
 
 

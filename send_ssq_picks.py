@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import select_numbers as SN
 
-SEND_EMAIL_CLI = Path.home() / ".hermes/skills/email/send-email/send_email.py"
+SEND_EMAIL_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email.py"
 
 
 def build_body(red_mean, blue_mean, groups, run_at, models):

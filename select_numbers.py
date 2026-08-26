@@ -37,6 +37,10 @@ import numpy as np
 import psycopg
 from ml.pg_conn import pg_dict
 
+# L4 修复(2026-08-26): 不再冗余硬编码 MODELS, 直接复用 batch_predict_pg.MODELS
+# (单一真相源, 避免两处定义漂移)
+from batch_predict_pg import MODELS  # noqa: E402  (模块级 import 在 sys.path 设置后)
+
 from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
 from wheel import CoverResult, greedy_cover
@@ -46,7 +50,6 @@ from ml.conformal.conformal_predict import build_from_history as _conformal_buil
 
 PG = pg_dict()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
 SCHEMA = "ssq"
-MODELS = ["rf", "lightgbm", "cnn_reg", "lstm", "transformer", "cdm"]  # 仅文档/兼容用途, 生产以 batch_predict_pg.MODELS 为准
 
 
 def load_latest_probs(conn, method: str = "mean", tau: float = 8000.0):
