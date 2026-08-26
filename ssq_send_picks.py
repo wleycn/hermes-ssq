@@ -193,7 +193,7 @@ def main():
         period, seed_auto, latest_date = compute_next_period()
         seed = args.seed or seed_auto
         # 状态门: 打印本期开奖日期, 供人工核对(本期应已由抓开奖 cron 入库)
-        print(f"[auto-next] 最新已开奖期={period}的上一期, 推算下一期={period}"
+        print(f"[auto-next] 最新已开奖期={int(period)-1}, 推算下一期={period}"
               f"(本期开奖日期={latest_date})")
 
     from ml.pg_conn import connect
