@@ -50,6 +50,42 @@ def upsert_draw(conn: Any, rec: dict) -> None:
     conn.commit()
 
 
+def ensure_stats_table(conn: Any) -> None:
+    """幂等建 ssq.draw_stats 表(奖金数据隔离表)。2026-08-29 B 档新增。"""
+    with conn.cursor() as cur:
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS ssq.draw_stats (
+                   dnum        VARCHAR(8) PRIMARY KEY,
+                   sales       BIGINT,
+                   poolmoney   BIGINT,
+                   prizegrades JSONB,
+                   FOREIGN KEY (dnum) REFERENCES ssq.draw_history(dnum)
+               )""")
+    conn.commit()
+
+
+def upsert_draw_stats(conn: Any, rec: dict) -> None:
+    """幂等写一行奖金数据到 ssq.draw_stats（单条 ON CONFLICT DO UPDATE）。
+
+    字段: dnum(str), sales(int, 元), poolmoney(int, 元),
+          prizegrades(list[dict{type,typenum,typemoney}] 或 JSON 串)。
+    2026-08-29 B 档新增: 奖金数据与开奖号正交, 独立表不影响主流程。
+    """
+    import json as _json
+    dnum = str(rec["dNum"]).strip()
+    pg_type = _json.dumps(rec["prizegrades"], ensure_ascii=False) \
+        if not isinstance(rec["prizegrades"], str) else rec["prizegrades"]
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO ssq.draw_stats (dnum, sales, poolmoney, prizegrades)
+               VALUES (%s,%s,%s,%s)
+               ON CONFLICT (dnum) DO UPDATE SET
+                   sales=EXCLUDED.sales, poolmoney=EXCLUDED.poolmoney,
+                   prizegrades=EXCLUDED.prizegrades""",
+            (dnum, int(rec["sales"]), int(rec["poolmoney"]), pg_type))
+    conn.commit()
+
+
 def get_latest_draw(conn: Any) -> Optional[dict]:
     """读最新一期（ORDER BY dnum DESC LIMIT 1）。无数据返回 None。"""
     with conn.cursor() as cur:

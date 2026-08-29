@@ -114,9 +114,14 @@ def parse_cwl_latest() -> dict | None:
     if not dDate:
         return None
     y, mo, _ = dDate.split("-")
+    # B 档(2026-08-29): 同一 CWL 响应已含奖金数据, 一并解析
+    sales = int(res.get("sales", 0) or 0)
+    poolmoney = int(res.get("poolmoney", 0) or 0)
+    prizegrades = res.get("prizegrades") or []
     return {
         "dNum": code, "yNum": int(y), "mNum": int(mo),
         "dDate": dDate, "reds": reds, "blue": blue,
+        "sales": sales, "poolmoney": poolmoney, "prizegrades": prizegrades,
     }
 
 
@@ -302,6 +307,23 @@ def main() -> int:
         import sys
         print(f"[ALERT] 写库 ssq.draw_history 失败(不影响 CSV/发信, 但 PG 已落后 CSV, 需排查): {e}",
               file=sys.stderr)
+
+    # B 档(2026-08-29): 奖金数据 upsert 到 ssq.draw_stats (仅中彩网权威源含奖金字段)
+    # latest 由 fetch_latest 返回, 中彩网命中时带 sales/poolmoney/prizegrades
+    if latest and "sales" in latest:
+        try:
+            import db_draw as db
+            conn = db.connect()
+            try:
+                db.ensure_stats_table(conn)
+                db.upsert_draw_stats(conn, latest)
+            finally:
+                conn.close()
+            print(f"[db] 已 upsert 期 {rec['dNum']} 奖金到 ssq.draw_stats")
+        except Exception as e:
+            import sys
+            print(f"[ALERT] 写库 ssq.draw_stats 失败(不影响开奖/发信): {e}",
+                  file=sys.stderr)
 
     # 统一从库读最新一期组邮件（无论新增/已存在都带号码）
     latest_draw = None

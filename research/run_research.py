@@ -120,7 +120,7 @@ def run_research() -> bool:
 
 def send_email(report_path: Path):
     """读报告, 统一走中枢 send_email.py (To=126 + Cc=163 由 .env 兜底). 凭据由中枢读取."""
-    SEND_CLI = Path.home() / ".hermes/skills/email/send-email/send_email.py"
+    SEND_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email.py"
     subject = f"SSQ预测方法研究简报 - {TODAY}"
     cmd = [sys.executable, str(SEND_CLI),
            "--subject", subject, "--body-file", str(report_path)]
