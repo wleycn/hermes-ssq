@@ -69,12 +69,37 @@ def gen_top5(red_mean, blue_mean, rng):
     return sorted(out, key=lambda x: x["popularity"], reverse=True)
 
 
-def gen_wheel(red_mean, blue_mean, seed):
-    """wheel 30 注: Top-18 概率池 → greedy_cover → 每注配蓝球."""
+def gen_wheel(red_mean, blue_mean, seed, max_notes=20):
+    """wheel 注: Top-18 概率池 → greedy_cover → 每注配蓝球.
+    max_notes 可配(默认20; walk-forward 验证 W20 保留 78% ≥4红事件仅花 67% 注数, 甜点)."""
     res = sn.build_wheel_tickets(red_mean, blue_mean, pool_size=18,
-                                 max_notes=30, restarts=3, seed=seed,
+                                 max_notes=max_notes, restarts=3, seed=seed,
                                  popularity_fn=None, lambda_=0.3)
     return res
+
+
+def dedup_combined(top5, wheel_tickets):
+    """去重: top5 优先以 'top5' 模式保留; wheel 中与 top5 撞票(同红集+蓝)者丢弃, 避免重复花钱。
+    返回 (wheel_unique, dropped)。"""
+    seen = {(tuple(sorted(g["reds"])), g["blue"]) for g in top5}
+    wheel_unique, dropped = [], 0
+    for t in wheel_tickets:
+        k = (tuple(sorted(t["reds"])), t["blue"])
+        if k in seen:
+            dropped += 1
+        else:
+            seen.add(k)
+            wheel_unique.append(t)
+    return wheel_unique, dropped
+
+
+def db_clear_mode(conn, period, mode):
+    """落库前整批清空该 period+mode 旧行(防历史 wheel30 残留 group_idx>新注数)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM ssq.predicted_picks WHERE period=%s AND mode=%s",
+            (period, mode))
+    conn.commit()
 
 
 def db_upsert(conn, period, run_at, mode, group_idx, reds, blue,
@@ -118,19 +143,20 @@ def send_email(subject, html_body):
         print(f"[email] 异常: {e}")
 
 
-def render_html(period, seed, run_at, top5, wheel):
-    """组装邮件 HTML: 5 组 + wheel 30 注 + 覆盖率报告."""
+def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20):
+    """组装邮件 HTML: 5 组(优先) + wheel 去重后并集 + 覆盖率报告."""
     res = wheel  # build_wheel_tickets 返回 dict
     rows5 = "".join(
         f"<tr><td>{g['group']}</td><td><b>{' '.join(f'{r:02d}' for r in g['reds'])}</b></td>"
         f"<td><b>{g['blue']:02d}</b></td><td>{g['popularity']:.3f}</td></tr>"
         for g in top5)
     cov = res["coverage"]
-    wt = res["tickets"]
+    wt = res["tickets"]  # 已是去重后的 wheel 部分
     rows_w = "".join(
         f"<tr><td>{i+1}</td><td>{' '.join(f'{r:02d}' for r in t['reds'])}</td>"
         f"<td>{t['blue']:02d}</td><td>{t['popularity']:.3f}</td></tr>"
         for i, t in enumerate(sorted(wt, key=lambda x: x["popularity"], reverse=True)))
+    total = len(top5) + len(wt)
     return f"""<html><body style="font-family:sans-serif">
 <h2>双色球 {period} 期推荐（下一期开奖）</h2>
 <p>数据源: 模型集成概率 run_at={run_at}；生成 seed={seed}（可复现）</p>
@@ -141,12 +167,14 @@ def render_html(period, seed, run_at, top5, wheel):
 </table>
 <p>注: 流行度越低越冷门(避开连号/生日号/全奇偶等热门组合)；仅供娱乐参考。</p>
 
-<h3>B. 旋转矩阵 wheel（池18 / 30注，中6保4 概率性保证）</h3>
+<h3>B. 旋转矩阵 wheel（池18 / {wheel_notes}注，去重后与 A 并集）</h3>
 <table border="1" cellpadding="4" cellspacing="0">
 <tr><th>#</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows_w}
 </table>
 <p>覆盖率: 4-子集 {cov['four_subset_coverage']*100:.2f}% ｜ 6-子集通过率 {cov['pass_rate']*100:.2f}% ｜ 注数 {cov['n_notes']} ｜ 池大小 {cov.get('pool_size','-')} ｜ 收敛 {cov['converged']}</p>
-<p>说明: 若 6 个奖号全部落在池内(概率 C(18,6)/C(33,6)≈17.7%)，30 注中至少一注中 4 红以上的概率为 {cov['pass_rate']*100:.2f}%。仅供娱乐参考。</p>
+<p>说明: 若 6 个奖号全部落在池内(概率 C(18,6)/C(33,6)≈17.7%)，{wheel_notes} 注中至少一注中 4 红以上的概率为 {cov['pass_rate']*100:.2f}%。</p>
+<p><b>合并总注数 = {total}（A 5 + B {len(wt)}；与 Top5 撞票已去重 {dropped} 张，不重复花钱）。</b></p>
+<p>诚实声明: 四法同吃 FLAT 概率, 每注命中率均=随机下限(≈1.09红/注); 覆盖差异只在规模/成本, 不在精度。仅供娱乐参考。</p>
 </body></html>"""
 
 
@@ -185,6 +213,12 @@ def main():
                     help="自动从 1.csv 算下一期期号(默认开)")
     ap.add_argument("--no-auto-next", dest="auto_next", action="store_false",
                     help="关闭自动算期, 必须显式 --period")
+    ap.add_argument("--wheel-notes", type=int, default=20,
+                    help="wheel 注数(默认20; 10/20/30 任配, walk-forward 验 20 为甜点)")
+    ap.add_argument("--no-email", action="store_true",
+                    help="不发送邮件(仅落库+打印, 用于测试/验证)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="不落库不发送, 仅打印合并统计(纯验证)")
     args = ap.parse_args()
 
     if args.period:
@@ -199,31 +233,53 @@ def main():
     from ml.pg_conn import connect
     conn = connect()  # 凭证从 ~/.hermes/.env 的 DATABASE_URL 读, 不硬编码
     with conn.cursor() as cur:
-        cur.execute(DDL)
+        cur.execute(DDL)  # 幂等建表
         conn.commit()
     red_mean, blue_mean, run_at, models = load_probs(conn)
     rng = np.random.default_rng(seed)
     top5 = gen_top5(red_mean, blue_mean, rng)
-    wheel = gen_wheel(red_mean, blue_mean, seed)
+    wheel = gen_wheel(red_mean, blue_mean, seed, max_notes=args.wheel_notes)
+
+    # ①+②: Top5 优先保留, wheel 与之撞票去重
+    wheel_u, dropped = dedup_combined(top5, wheel["tickets"])
+    wheel = {**wheel, "tickets": wheel_u}
 
     now = datetime.now()
+    total_notes = len(top5) + len(wheel_u)
+    print(f"[combine] period={period} top5={len(top5)} wheel={len(wheel_u)} "
+          f"(原{args.wheel_notes}注去重丢{dropped}) 合并={total_notes} "
+          f"pass_rate={wheel['coverage']['pass_rate']:.4f} run_at={run_at}")
+
+    if args.dry_run:
+        print(f"[dry-run] 不落库不发送。合并总注={total_notes}, 去重{dropped}张。")
+        conn.close()
+        return
+
+    # 落库前整批清空该期旧行(防历史 wheel30 残留 group_idx>新注数)
+    db_clear_mode(conn, period, "top5")
+    db_clear_mode(conn, period, "wheel")
     # 落库 A: 5 组
     for g in top5:
         db_upsert(conn, period, now, "top5", g["group"], ",".join(f"{r:02d}" for r in g["reds"]),
                   g["blue"], g["popularity"], seed)
-    # 落库 B: wheel 30 注
+    # 落库 B: wheel 去重后注单(模式标记 wheel, 但已不含与 top5 撞票)
     cov = wheel["coverage"]
-    for i, t in enumerate(wheel["tickets"], 1):
+    for i, t in enumerate(wheel_u, 1):
         db_upsert(conn, period, now, "wheel", i, ",".join(f"{r:02d}" for r in t["reds"]),
                   t["blue"], t["popularity"], seed,
                   pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
                   n_notes=cov["n_notes"])
 
     # 打印 + 邮件
-    print(f"[db] period={period} top5={len(top5)} wheel={len(wheel['tickets'])} "
+    title = (f"双色球{period}期推荐: Top5+Wheel{args.wheel_notes}去重"
+             f"{total_notes}注(通过率{cov['pass_rate']*100:.1f}%)")
+    print(f"[db] period={period} top5={len(top5)} wheel={len(wheel_u)} "
           f"pass_rate={cov['pass_rate']:.4f} run_at={run_at}")
-    send_email(f"双色球{period}期推荐: 5组 + wheel30注(通过率{cov['pass_rate']*100:.1f}%)",
-               render_html(period, seed, run_at, top5, wheel))
+    if not args.no_email:
+        send_email(title, render_html(period, seed, run_at, top5, wheel,
+                                      dropped=dropped, wheel_notes=args.wheel_notes))
+    else:
+        print(f"[no-email] 跳过发信。标题={title}")
     # 落库确认
     with conn.cursor() as cur:
         cur.execute("SELECT mode, COUNT(*) FROM ssq.predicted_picks WHERE period=%s GROUP BY mode ORDER BY 1", (period,))
