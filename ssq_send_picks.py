@@ -31,6 +31,8 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 import select_numbers as sn
 from ml.popularity import combo_popularity
+# 镜像导出: 落库后自动把当期权重进 data-center/ssq/picks (PG 单真源, csv 为镜像备份)
+from export_picks_to_datacenter import export_period
 
 DEFAULT_PERIOD = "2026094"
 DEFAULT_SEED = 2026094
@@ -55,20 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_predicted_picks_period ON ssq.predicted_picks(per
 """
 # 列迁移兜底: 旧表无 wheel_notes 列时补齐 (幂等)
 ALTER_DDL = "ALTER TABLE ssq.predicted_picks ADD COLUMN IF NOT EXISTS wheel_notes INT;"
-
-
-def load_probs(conn):
-    """读最新 run_at 集成概率, 返回 (red_mean, blue_mean, run_at, models)."""
-    return sn.load_latest_probs(conn)
-
-
-def gen_wheel(red_mean, blue_mean, seed, total_notes=20):
-    """生成纯 Wheel 注单: Top-18 概率池 → greedy_cover 覆盖, 直接生成 total_notes 注。
-    不再嵌入 Top5 锚(锚方案已弃用), W10/W20 各自独立生成、互不嵌套共享注。"""
-    res = sn.build_wheel_tickets(red_mean, blue_mean, pool_size=18,
-                                 max_notes=total_notes, restarts=3, seed=seed,
-                                 popularity_fn=None, lambda_=0.3)
-    return res
 
 
 def db_clear_mode(conn, period, mode, wheel_notes=None):
@@ -190,6 +178,10 @@ def main():
                     help="不发送邮件(仅落库+打印, 用于测试/验证)")
     ap.add_argument("--dry-run", action="store_true",
                     help="不落库不发送, 仅打印合并统计(纯验证)")
+    ap.add_argument("--no-shrink", action="store_true",
+                    help="关闭 James-Stein 收缩(默认开启, 概率诚实化; 仅调试用)")
+    ap.add_argument("--no-popularity", action="store_true",
+                    help="关闭流行度计算(默认开启; 仅调试用)")
     args = ap.parse_args()
 
     if args.period:
@@ -207,26 +199,25 @@ def main():
         conn.commit()
         cur.execute(ALTER_DDL)  # 列迁移兜底: 旧表补 wheel_notes 列
         conn.commit()
-    red_mean, blue_mean, run_at, models = load_probs(conn)
-
     # 解析目标尺寸
     sizes = [int(x) for x in args.wheels.split(",") if x.strip()]
     if not sizes:
         sizes = [10, 20]
     print(f"[config] 纯 wheel 尺寸={sizes} (无锚/无结合)")
+    # 单一权威入口: 集成概率 → (James-Stein 收缩) → 纯 wheel 多尺寸
+    # 研究结论(收缩/无top5锚)只落地在 select_numbers.generate_picks, 此处不重复实现
+    run_at, wheels = sn.generate_picks(
+        conn, seed, wheels=sizes,
+        no_shrink=getattr(args, "no_shrink", False),
+        no_popularity=getattr(args, "no_popularity", False),
+    )
 
     now = datetime.now()
     # 清理上一版残留的 top5 锚行(纯 wheel 模式已弃用锚, 旧数据留在库里会污染复盘)
     db_clear_mode(conn, period, "top5")
-    wheels: dict[int, tuple] = {}
     for N in sizes:
-        # 各尺寸独立派生 seed, 保证 W10/W20 注单独立生成(不嵌套共享)
-        wseed = seed + (N % 1000)
-        wheel = gen_wheel(red_mean, blue_mean, wseed, total_notes=N)
-        tickets = wheel["tickets"]
-        cov = wheel["coverage"]
+        tickets, cov = wheels[N]
         print(f"[wheel] N={N} 生成注={len(tickets)} pass_rate={cov['pass_rate']:.4f}")
-        wheels[N] = (tickets, cov)
 
         if args.dry_run:
             print(f"[dry-run] N={N} 不落库不发送。")
@@ -240,6 +231,13 @@ def main():
                       t["blue"], t["popularity"], seed,
                       pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
                       n_notes=cov["n_notes"], wheel_notes=N)
+
+    # 整期落库完成后, 镜像一次到 data-center/ssq/picks (csv 失败仅 log, 不阻断发邮件)
+    try:
+        export_period(conn, period)
+        print(f"[mirror] 已镜像当期权重到 data-center/ssq/picks ({period})")
+    except Exception as e:
+        print(f"[mirror] 警告: csv 镜像失败(不影响 PG 真源与发信): {e}")
 
     if args.dry_run:
         conn.close()

@@ -43,6 +43,7 @@ from batch_predict_pg import MODELS  # noqa: E402  (模块级 import 在 sys.pat
 
 from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
+from ml.shrinkage import shrink_red_blue  # James-Stein 收缩: 研究结论默认开启, 概率诚实化
 from wheel import CoverResult, greedy_cover
 # C1 conformal 风险分层(研究简报 2026-08-17 [3], 工程落地 2026-08-19):
 # 把集成概率升级为带理论覆盖率保证的候选集合, 仅作可解释风险分层, 不改变命中率。
@@ -269,13 +270,14 @@ def _popularity_off(reds):
 
 
 def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restarts=3,
-                        seed=42, popularity_fn=None, lambda_=0.3):
-    """旋转矩阵覆盖模式: 红球 Top-pool_size 概率池 -> 贪心覆盖 -> 每注配 1 个蓝球。
+                        seed=42, popularity_fn=None, lambda_=0.3, pool_tau=8.0):
+    """旋转矩阵覆盖模式: 红球按概率加权抽样成 pool_size 池 -> 贪心覆盖 -> 每注配 1 个蓝球。
 
     Args:
         red_mean: 33 维红球集成概率。
         blue_mean: 16 维蓝球集成概率。
-        pool_size: 概率 Top-N 红球池大小(6..33)。
+        pool_size: 红球池大小(6..33); 池由"按概率 softmax 加权随机抽 pool_size 个"构成(非硬 Top-N)。
+        pool_tau: 池构造 softmax 温度(>0); 越大越接近均匀抽样, 低号(1-15)入场权越高。默认 8.0。
         max_notes / restarts / seed: 透传 wheel.greedy_cover。
         popularity_fn: 每注流行度计算函数(reds -> float); None 时用默认
             combo_popularity(规则版)。
@@ -293,8 +295,14 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
                          f"实际 {len(red_mean)}/{len(blue_mean)}")
     if not (6 <= pool_size <= 33):
         raise ValueError(f"pool_size 必须在 6-33 之间, 实际 {pool_size}")
-    top = np.argsort(red_mean)[::-1][:pool_size]
-    pool = sorted((top + 1).tolist())
+    # 池构造(2026-08-30 修复): 由"硬取概率 Top-N"改为"按概率 softmax 加权随机抽 N"
+    # —— 低号按真实概率非零入场, 高号仍更常进池; 保留小池快覆盖优势, 分布回归均匀。
+    # 修正 bug: 原硬 Top-N 截断使低号(1-15)数学上概率为 0 入选, 收缩后极化纯 16-33。
+    pool_rng = np.random.default_rng(seed)
+    w = np.power(red_mean, 1.0 / pool_tau)
+    w = w / w.sum()
+    picked = pool_rng.choice(len(red_mean), size=pool_size, replace=False, p=w)
+    pool = sorted((picked + 1).tolist())
     res: CoverResult = greedy_cover(pool, k=6, t=4, max_notes=max_notes,
                                     restarts=restarts, seed=seed)
     blue_rng = np.random.default_rng(seed + 1)
@@ -319,12 +327,14 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
     return {"tickets": tickets, "coverage": coverage}
 
 
-def _run_wheel(red_mean, blue_mean, args, run_at):
-    """--wheel 模式: 生成并打印覆盖注单 + 覆盖率报告。"""
+def _run_wheel(red_mean, blue_mean, args, run_at, result=None):
+    """--wheel 模式: 生成并打印覆盖注单 + 覆盖率报告。
+    result 不为 None 时复用(来自 generate_picks, 已含收缩); 否则用未收缩概率自算(调试)。"""
     pop_fn = _popularity_off if args.no_popularity else None
-    result = build_wheel_tickets(red_mean, blue_mean, pool_size=args.pool_size,
-                                 max_notes=args.max_notes, restarts=3, seed=args.seed,
-                                 popularity_fn=pop_fn, lambda_=args.popularity_lambda)
+    if result is None:
+        result = build_wheel_tickets(red_mean, blue_mean, pool_size=args.pool_size,
+                                     max_notes=args.max_notes, restarts=3, seed=args.seed,
+                                     popularity_fn=pop_fn, lambda_=args.popularity_lambda)
     cov = result["coverage"]
     if args.json:
         print(json.dumps({"run_at": str(run_at), "mode": "wheel", **result},
@@ -384,23 +394,29 @@ def main():
     try:
         red_mean, blue_mean, run_at, _ = load_latest_probs(
             conn, method=args.ensemble, tau=args.ensemble_tau)
+        if args.wheel:
+            # 单一权威入口 generate_picks: 集成→(收缩)→纯wheel
+            # CLI 单尺寸 wheel 用 raw seed(seed_shift=False) 保持历史调试输出一致
+            _, wheels = generate_picks(
+                conn, args.seed, wheels=[args.max_notes],
+                pool_size=args.pool_size, restarts=3,
+                no_shrink=args.no_shrink, shrink_alpha=args.shrink_alpha,
+                no_popularity=args.no_popularity,
+                ensemble=args.ensemble, ensemble_tau=args.ensemble_tau,
+                seed_shift=False)
+            result = {"tickets": wheels[args.max_notes][0],
+                      "coverage": wheels[args.max_notes][1]}
+            _run_wheel(red_mean, blue_mean, args, run_at, result=result)
+            return
+
+        # 非 wheel 路径(顶层 groups 生成 / conformal):
+        # 收缩在此落地(与 generate_picks 同源逻辑), 维持原 main 对 groups 路径的收缩语义
+        if not args.no_shrink:
+            red_mean, blue_mean = shrink_red_blue(
+                red_mean, blue_mean, sigma2=1.0, alpha=args.shrink_alpha)
+        groups = generate(red_mean, blue_mean, args.groups, args.seed)
     finally:
         conn.close()
-
-    # P1 James-Stein 收缩后处理(研究简报 2026-08-22 [1], 落地 2026-08-22):
-    # 均值集成后向均匀先验收缩, 本质是对模型在随机数据上学到的偏离均匀的
-    # 噪声做正则化。与 EBMA(模型权重融合)正交。预期命中率无显著变化(FLAT),
-    # 价值在概率诚实化与可辩护性。
-    if not args.no_shrink:
-        from ml.shrinkage import shrink_red_blue
-        red_mean, blue_mean = shrink_red_blue(red_mean, blue_mean,
-                                              sigma2=1.0, alpha=args.shrink_alpha)
-
-    if args.wheel:
-        _run_wheel(red_mean, blue_mean, args, run_at)
-        return
-
-    groups = generate(red_mean, blue_mean, args.groups, args.seed)
 
     # C1 conformal 风险分层(仅解释层, 不影响选号)
     conf = None
@@ -439,6 +455,40 @@ def main():
                   f"月度重训积累批次后更稳)")
         print(f"  注: conformal 集合为理论覆盖率保证(不提升命中率, 仅可解释风险分层)")
     print("注: 以上基于 ML 模型历史概率集成, 仅供娱乐参考, 不保证中奖。")
+
+
+def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 20),
+                   pool_size: int = 18, restarts: int = 3,
+                   no_shrink: bool = False, shrink_alpha: float = 1.0,
+                   no_popularity: bool = False, ensemble: str = "mean",
+                   ensemble_tau: float = 8000.0, seed_shift: bool = True):
+    """单一 picks 生成权威入口: 集成概率 → (收缩) → 纯 wheel 多尺寸。
+
+    研究结论只在此落地一次, 生产发信(ssq_send_picks)与 CLI 探索(select_numbers)
+    共用, 杜绝双入口分裂导致的研究结论漏接/文档脱节。
+
+    链路对齐(与 2026-08-22 简报[1] 一致):
+      1. load_latest_probs 每模型每球种独立取最新, 红蓝分别均值集成
+      2. James-Stein 收缩(默认开启): 向均匀先验收缩, 概率诚实化; 不提升命中率
+      3. 纯 wheel(无 top5 锚): 各尺寸独立派生 seed, 互不嵌套共享, 流行度默认开
+    返回: (run_at, {size: (tickets, coverage)})
+    """
+    from ml.shrinkage import shrink_red_blue
+    red_mean, blue_mean, run_at, _ = load_latest_probs(
+        conn, method=ensemble, tau=ensemble_tau)
+    if not no_shrink:
+        red_mean, blue_mean = shrink_red_blue(
+            red_mean, blue_mean, sigma2=1.0, alpha=shrink_alpha)
+    pop_fn = _popularity_off if no_popularity else None
+    out: dict[int, tuple] = {}
+    for N in wheels:
+        # 多尺寸时各尺寸独立派生 seed(保证注单独立生成); 单尺寸可选 raw seed 保兼容
+        wseed = seed + (N % 1000) if seed_shift else seed
+        res = build_wheel_tickets(red_mean, blue_mean, pool_size=pool_size,
+                                  max_notes=N, restarts=restarts, seed=wseed,
+                                  popularity_fn=pop_fn, lambda_=0.3)
+        out[N] = (res["tickets"], res["coverage"])
+    return run_at, out
 
 
 if __name__ == "__main__":
