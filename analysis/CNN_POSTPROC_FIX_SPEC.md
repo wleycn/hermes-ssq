@@ -20,4 +20,4 @@
 
 ## 验证
 - 单元测试：构造最小 df，断言 `predict_with_post_processing` 不读取任何 `iloc[-1]` 之后的信息（难以直接断言，改为 code review + 输入仅含训练期数据）。
-- 敏感性扫描输出：`analysis/results/cnn_threshold_sweep.csv`。
+- 敏感性扫描输出：`/home/hermes/workspace/data-center/ssq/analysis/results/cnn_threshold_sweep.csv`。

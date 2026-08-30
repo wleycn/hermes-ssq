@@ -31,7 +31,8 @@ from pathlib import Path
 HERMES_BIN = shutil.which("hermes") or "/home/hermes/.local/bin/hermes"
 
 ROOT = Path(__file__).resolve().parent
-REPORTS = ROOT / "reports"
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
+REPORTS = DC_SSQ / "research" / "reports"
 REPORTS.mkdir(exist_ok=True)
 
 TODAY = datetime.date.today().strftime("%Y-%m-%d")

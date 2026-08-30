@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -1019,13 +1020,13 @@ def main(argv: Optional[List[str]] = None) -> Dict:
 
     # 默认输出路径
     default_name = "report_smoke" if args.smoke else "report_default"
-    out = Path(args.out) if args.out else ROOT / f"analysis/results/{default_name}.json"
+    out = Path(args.out) if args.out else DC_SSQ / "analysis/results" / f"{default_name}.json"
 
     # ---------- 红球频谱探针(独立模式, 分支最前; 与 --spectral/--strategy/--features 互斥) ----------
     if args.spectral_red:
         if args.spectral or args.strategy or args.features:
             ap.error("--spectral-red 与 --spectral/--strategy/--features 互斥")
-        out = Path(args.out) if args.out else ROOT / "analysis/results/spectral_red_probe.json"
+        out = Path(args.out) if args.out else DC_SSQ / "analysis/results/spectral_red_probe.json"
         reds = df[RED_COLS].to_numpy(dtype=int)
         result = run_red_spectral_test(reds)
         report = red_spectral_report_dict(result, run_at=run_at,
@@ -1041,7 +1042,7 @@ def main(argv: Optional[List[str]] = None) -> Dict:
     if args.spectral:
         if args.strategy or args.features:
             ap.error("--spectral 与 --strategy/--features 互斥")
-        out = Path(args.out) if args.out else ROOT / "analysis/results/spectral_probe.json"
+        out = Path(args.out) if args.out else DC_SSQ / "analysis/results/spectral_probe.json"
         blues = df[BLUE_COLS[0]].astype(int).to_numpy()
         result = run_three_gate_test(blues, window=args.window)
         report = spectral_report_dict(result, run_at=run_at, source="ml/data/1.csv (Blue1)")

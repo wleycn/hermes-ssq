@@ -13,7 +13,7 @@
 
 复用 ml/spectral_red.py 纯函数(cooccurrence_matrix / subclass_stats /
 exact_sum_null / moments_z_test), 不重复实现统计。输出:
-  analysis/results/red_zone_drift.md
+  /home/hermes/workspace/data-center/ssq/analysis/results/red_zone_drift.md
 
 用法: .venv/bin/python analysis/red_zone_drift.py
 """
@@ -40,7 +40,8 @@ from ml.spectral_red import (  # noqa: E402
 )
 
 RED_COLS = [f"Red{i}" for i in range(1, 7)]
-OUT = ROOT / "analysis/results/red_zone_drift.md"
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
+OUT = DC_SSQ / "analysis/results/red_zone_drift.md"
 
 # 时间切片边界(含): 段1 2003-2008 / 段2 2009-2014 / 段3 2015-2020 / 段4 2021-2026
 TIME_SLICES = [

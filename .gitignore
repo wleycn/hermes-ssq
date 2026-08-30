@@ -16,8 +16,9 @@ __pycache__/
 
 # 临时/中间产物
 *.tmp
-analysis/results/_*.txt
-analysis/results/full_run.log
+# 注: evaluation/探针产出已迁至 /home/hermes/workspace/data-center/ssq/analysis/results/ (2026-08-30 迁移真源), 不在本仓库内, 故此处不再忽略
+# analysis/results/_*.txt
+# analysis/results/full_run.log
 
 # 编辑器
 .vscode/
@@ -34,8 +35,8 @@ research/logs/
 # Trae IDE 自动生成
 .trae/
 
-# 冒烟/临时评测报告(可复现, 不入库)
-analysis/results/report_smoke.*
-analysis/results/feature_validation_smoke.json
-analysis/results/report_entropy.md
-analysis/results/report_spectral_strategy.*
+# 冒烟/临时评测报告(可复现, 不入库) — 已迁 data-center/ssq, 见上文注记
+# analysis/results/report_smoke.*
+# analysis/results/feature_validation_smoke.json
+# analysis/results/report_entropy.md
+# analysis/results/report_spectral_strategy.*

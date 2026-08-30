@@ -52,5 +52,5 @@ def walk_forward(
 - 先验证小样本跑通，再决定全量。
 
 ## 验证
-- 跑通后输出 CSV：`analysis/results/walk_forward_<model>_<mode>.csv`
-- 汇总表存 `analysis/results/comparison_table.csv`
+- 跑通后输出 CSV：`/home/hermes/workspace/data-center/ssq/analysis/results/walk_forward_<model>_<mode>.csv`
+- 汇总表存 `/home/hermes/workspace/data-center/ssq/analysis/results/comparison_table.csv`

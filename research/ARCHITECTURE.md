@@ -34,8 +34,8 @@ ml/data/1.csv  ──►  PG ssq.draw_history (权威归档镜像, 全量保留;
 PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天按 data_date 清理)
   │ (select_numbers.load_latest_probs: 每模型每球种独立取最新, 红蓝分别均值)
   ▼
-集成概率 33红/16蓝 → select_numbers.generate (受控随机加权+奇偶/大小约束)
-  → top5 组 + wheel 30 注(池18, popularity) → ssq_send_picks.py → 163 邮件
+集成概率 33红/16蓝 → select_numbers.generate_picks (单一权威入口: 集成→James-Stein收缩→纯wheel)
+  → 纯 wheel(默认10/20注, 池18, popularity, top5锚已弃用) → ssq_send_picks.py → 163 邮件
 ```
 
 ### 1.2 cron 三任务布局（唯一权威，2026-08-15 Rocky 拍板）
@@ -44,7 +44,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 |---|---|---|---|---|
 | `246a519bce0b` | 双色球开奖检查+入库+发邮件 | 开奖日(二/四/日) 22:00 | update_ssq.py (no_agent) | 权威核实开奖号 → 1.csv + **自动 upsert 写 ssq.draw_history**(db_draw.upsert, 幂等, 失败不影响 CSV/发信) + 发邮件；pg_schema.py 仍可作整表重建兜底(2026-08-26 拍板: draw_history 改自动写, 原 H1"只读/手动同步"已废止) |
 | `ced57f0994d8` | SSQ 发下期预测 | 开奖日 22:15 | 挂 ssq-lottery-pipeline skill | 生成预测+邮件 |
-| `98164fe6c0d6` | SSQ 月度重训 | 每月1号 03:00 | retrain_pipeline.py --no-email | 全量重训 6 模型 + 概率入库（内部调 batch_predict_pg.py --retrain）+ **探针证据重跑**(2026-08-22 起: 随机性月度监控, 探针体系饱和关闭后仍每月复查漂移, 产出 analysis/results/probe_evidence_*.txt) |
+| `98164fe6c0d6` | SSQ 月度重训 | 每月1号 03:00 | retrain_pipeline.py --no-email | 全量重训 6 模型 + 概率入库（内部调 batch_predict_pg.py --retrain）+ **探针证据重跑**(2026-08-22 起: 随机性月度监控, 探针体系饱和关闭后仍每月复查漂移, 产出 `/home/hermes/workspace/data-center/ssq/analysis/results/probe_evidence_*.txt`) |
 | （系统 crontab，非 Hermes job：`/var/spool/cron/crontabs/hermes`） | SSQ 预测方法研究（周6/7） | 每周六/日 04:00 | run_research.py | 调 Hermes CLI -z 做多源研究 → reports/YYYY-MM-DD.md → 163 邮件（prompt 已强制先读本架构文档第 3 节）。2026-08-22 由"每日"降频为"每周 2 次"(Rocky 拍板: SSQ 研究降频, 方向转向 fin-risk 迁移)。⚠️ 修改此任务须用 docker root 操作 `/var/spool/cron/crontabs/hermes`(hermes 用户无写权限, `crontab` 命令被拒) |
 
 - deliver 全部 local-only：通知走脚本自带 smtplib 163 邮件，**不加微信冗余通知**（Rocky 厌恶无效通知）
@@ -58,7 +58,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 | retrain_pipeline.py | 月度重训编排 + 覆盖验证 + 可选发邮件 | cron `98164fe6c0d6` 调用 |
 | batch_predict_pg.py | 模型预测 → 概率入 PG；`--retrain` 才重训 | 默认复用已存模型 |
 | ml/main.py | 单模型训练/预测/save/load 入口 | run_train(retrain=False) + 模型不存在 → 自动训练兜底 |
-| select_numbers.py | 集成(load_latest_probs) + 受控随机选号 | 均值集成最稳健（EBMA 已证坍缩） |
+| select_numbers.py | 单一生成入口 `generate_picks`(集成→收缩→纯wheel) + 受控随机 | 均值集成最稳健（EBMA 已证坍缩）；凡是选号改动只改 generate_picks 一处 |
 | ssq_send_picks.py | 生成+落库 predicted_picks + 发邮件 | ~/.hermes/scripts/，含凭证不入库 |
 | evaluate.py | walk-forward 回测 + 特征开关 keep/rollback | 评测用，非生产 |
 | spectral.py / spectral_red.py | 蓝/红球随机性检验探针 | 检验器非预测器 |
@@ -78,7 +78,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 ## 2. 项目现状（一句话版）
 
 - **数据**：`ml/data/1.csv` 3494 期（2003 至今，中彩网权威 + EastMoney/网易多源轮询，幂等入库，CRLF），PG `ssq.draw_history` 全量归档（update_ssq 自动 upsert 写入，pg_schema 整表重建兜底）
-- **管线**：6 模型 → PG `ssq.model_predictions` → 均值集成 → `select_numbers` 受控随机加权抽样 → top5 组 + wheel 30 注 → 开奖日 22:15 邮件
+- **管线**：6 模型 → PG `ssq.model_predictions` → 均值集成 → `generate_picks`(集成→James-Stein收缩→纯wheel 默认10/20注, top5锚已弃用) → 落库 predicted_picks → 开奖日 22:15 邮件
 - **回测基建**：`evaluate.py`（walk-forward + 蒙特卡洛基线 N=1000 + keep/rollback 显著性判定），特征开关 `FEATURE_TOGGLES`
 - **探针**：`ml/spectral.py`（蓝球三关）/ `ml/spectral_red.py`（红球三路径）随机性检验器——定位是**检验器非预测器**
 - **核心立场**：彩票 i.i.d. 随机，任何方法无法突破随机下限；一切特征/策略以统计检验为准绳，**FLAT/rollback 是科学结论，不是失败**。不可能性锚点：一等奖概率 ≈ 1/17,721,088
@@ -167,7 +167,7 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 | 2026-08-16 | hot_cold 开关回退关闭；模型持久化 = 月度重训由 cron（98164fe6c0d6, retrain_pipeline --no-email）负责，batch_predict_pg 加显式 --retrain 开关（默认复用），撤销代码层自动判断过度设计；PROJECT_STATUS.md 升级为 ARCHITECTURE.md（唯一架构+状态文档，skill 收敛为操作手册） |
 | 2026-08-16 | doc 角色首轮审核（deleg_83e3411c）：2 HIGH + 5 MEDIUM + 5 LOW + 4 SUGGESTION；H1 draw_history 职责修正（只读归档, 手动同步）、H2 三个 agent cron 已 pin 到 nous/tencent/hy3:free；M1 8 模型补全（`batch_predict_pg.py`/`retrain_pipeline.py` 已含 transformer_all/cdm）。注：ARCHITECTURE 原记"6/8 模型口径待定"为审核时快照, 代码已于当日补 8 模型, 记录滞后；2026-08-19 B4 修正文案与 select_numbers.py docstring 虚假记载 |
 | 2026-08-19 | B/A/C 工程落地：①B4 加 draw_history drift 护栏(`pg_schema.draw_history_drift`/`sync_draw_history`, 不进生产 cron, 尊重 H1 手动同步)；②A 层 `ml/probes/` 随机性探针套件(surrogate/NIST适用子集/ordinal/transfer_entropy), pytest 5/5 通过；③C 层 `ml/conformal/` UQ(conformal 集合覆盖率保证验证成立、EDL 先验实验证证据量在 i.i.d. 下退化→仅解释层不进生产)。**关键结论 A4: 跨球位 Transfer Entropy≈0 → 实证支撑"逐球独立建模"假设(i.i.d.), 关闭该开放缺口**。同日 C1 已接入生产 `select_numbers.py`(`build_conformal`/`apply_conformal`, 校准用 PG 历史批次对齐 1.csv 下一期开奖, 默认开启, `--no-conformal`/`--conformal-alpha` 可调; README 已补结构树+探针/UQ 章节+专业术语通俗解释表) |
-| 2026-08-22 | 08-20/22 简报 P1 落地 + qwen 审核吸收：①MF-DFA 探针(`ml/probes/mfdfa_probe.py`)真实数据 3492 期红 H(2)=0.473/蓝 0.493、Δh≈0、surrogate |z|<2 → FLAT 证据；②RMT 探针(`ml/probes/rmt_probe.py`)按 qwen 修正规格(33号码×200期窗口, 非 6 球位), 真实数据 max_ratio z=-0.81 → RANDOM；⚠️ MP 上界为渐近理论, N=33 有限样本 max_eig 远达不到 λ_+, 绝对尖峰判据无检测力 → 改 surrogate 相对判据；③James-Stein 收缩(`ml/shrinkage.py` 接入 select_numbers, 默认开启 `--no-shrink`)walk-forward: 命中率非其目标(红 Top6 -0.07/蓝 +0.007), Brier 双侧下降(红 -0.04%/蓝 -0.82%)→ 诚实化生效; ⚠️ **对简报止损线(p>0.05 即 rollback)显式偏离**: 红 Top6 下降 p=0.002 显著, 但命中率非 Stein 目标且生产路径非 argmax, 保留开启——偏离论证见 docs/steiner_walkforward_2026-08-22.md; ④校准诊断(`ml/probes/calibration_probe.py`)验证: 均匀输出 ECE≈0.007 且 isotonic≈0 → 印证"校准在 i.i.d. 下无操作空间"盲区; ⚠️ **相对简报[2]范围收窄**: 简报提议对生产概率做 isotonic 映射, 落地仅诊断层(无操作空间); ⑤Gap 特征按 qwen"信息等价"结论归档不实验(省算力)。**可复现性补强**(tech-writer 审计 R3): `analysis/probe_evidence.py` 落盘真实数据数值到 `analysis/results/probe_evidence_*.txt` |
+| 2026-08-22 | 08-20/22 简报 P1 落地 + qwen 审核吸收：①MF-DFA 探针(`ml/probes/mfdfa_probe.py`)真实数据 3492 期红 H(2)=0.473/蓝 0.493、Δh≈0、surrogate |z|<2 → FLAT 证据；②RMT 探针(`ml/probes/rmt_probe.py`)按 qwen 修正规格(33号码×200期窗口, 非 6 球位), 真实数据 max_ratio z=-0.81 → RANDOM；⚠️ MP 上界为渐近理论, N=33 有限样本 max_eig 远达不到 λ_+, 绝对尖峰判据无检测力 → 改 surrogate 相对判据；③James-Stein 收缩(`ml/shrinkage.py` 接入 select_numbers, 默认开启 `--no-shrink`)walk-forward: 命中率非其目标(红 Top6 -0.07/蓝 +0.007), Brier 双侧下降(红 -0.04%/蓝 -0.82%)→ 诚实化生效; ⚠️ **对简报止损线(p>0.05 即 rollback)显式偏离**: 红 Top6 下降 p=0.002 显著, 但命中率非 Stein 目标且生产路径非 argmax, 保留开启——偏离论证见 docs/steiner_walkforward_2026-08-22.md; ④校准诊断(`ml/probes/calibration_probe.py`)验证: 均匀输出 ECE≈0.007 且 isotonic≈0 → 印证"校准在 i.i.d. 下无操作空间"盲区; ⚠️ **相对简报[2]范围收窄**: 简报提议对生产概率做 isotonic 映射, 落地仅诊断层(无操作空间); ⑤Gap 特征按 qwen"信息等价"结论归档不实验(省算力)。**可复现性补强**(tech-writer 审计 R3): `analysis/probe_evidence.py` 落盘真实数据数值到 `/home/hermes/workspace/data-center/ssq/analysis/results/probe_evidence_*.txt` |
 | 2026-08-22 | 探针体系 C 项补完(Rocky 拍板 C: 完美主义者不留遗憾): 08-18/19/20/22 简报未落盘的 6 个探针补落地——`visibility_probe`(可见图度分布, MLE 几何参数 + RS surrogate)、`lz_probe`(LZ76 复杂度, 区间判据吸收编码伪影)、`rqa_probe`(递归量化 DET/Lmax)、`mse_probe`(多尺度样本熵, 降级信息输出——短序列样本熵方差大, 白噪声曲线不单调衰减)、`renyi_probe`(Rényi 熵谱 H4/H1 + TV)、`dcca_probe`(去趋势交叉相关, 绝对区间判据——F² 独立时≈0, surrogate z 失真)。**实测发现两个适用性边界**: ①Rényi/可见图/RQA 对"红球全量展平"(33 取 6 不放回)误报 NONRANDOM——组合约束伪影, 应作用于 i.i.d. 序列(蓝球/和值/单号), 蓝球与和值全 RANDOM ✅; ②DCCA/LZ 对独立序列有系统性偏差(编码伪影/符号相消), 改用区间判据。pytest 90 passed 1 skipped; probe_evidence.py 已纳入新探针。TDA 因 ripser 依赖未装, 保留外部依赖待装项。**探针体系 14 家族全部落地(除 TDA), 饱和关闭成立** |
 | 2026-08-19 | 模型层收敛+命名规范化(用户拍板): ... pytest 20/20 通过(模型相关)。遗留: `test_select_and_mail.py::test_send_email_dry_run` 断言旧字符串"DRY-RUN"与代码实际输出"[dry-run]"不符, 为改名前既有测试期望值 bug, 与本次无关, 未动。**后续修复(saved_models 磁盘迁移, 用户拍板 A)**: 代码实例化用规范名(`lightgbm`/`cnn_reg`/`transformer`/`lstm`)但磁盘旧目录(`lgbm_*`/`cnn_math`/`transformer_all`/`lstm_blue|reds|all`)未同步 → 复用模式(无 `--retrain`)全部 `FileNotFoundError` 被迫重训。已做最小迁移: `lgbm_*→lightgbm_*`、`cnn_math→cnn_reg`、`transformer_all→transformer`(内部 .pt 文件名写死未动, 改名后仍能 load, 零重训立即复用); `lstm_blue/reds/all` 三目录**保留作备份未删**(旧 `_LSTMNet`33维权重与新 `_HybridLSTM`49维不兼容, 无法迁移, 等 09-01 月度重训生成 `lstm/`)。 |
 | 2026-08-23 | **脚本架构归一(用户拍板 B+C + 不搞特例)**: ①所有 SSQ 脚本改为「项目内唯一真身 + ~/.hermes/scripts/ 只留壳」架构, 消除 scripts/ 旧副本漂移(今晚 update_ssq 旧副本导致开奖信发老格式); ②新建 skill `cron-shell-wrapper`(双向绑定注释: 壳标 cron job_id+真身路径, 真身标壳+cron job_id); ③**关键认知纠正**: ssq_send_picks.py 原被误判"含明文凭证不入库"长期留 scripts/, 实测其 hardcode 的 PG 密码与 batch_predict_pg.py 同款且后者已 git 跟踪, **硬码 pwd 不是不转壳理由**——已归一进项目根; **敏感数据精确定义**: 仅 pwd/key/token 算敏感, 内部 URL(127.0.0.1:5432)不算; ④4 脚本(update_ssq/append_ssq 在 ml/data/, retrain_pipeline/ssq_send_picks 在项目根)全部转壳, 旧副本备份 `.bak_20260823`; ⑤shell 脚本铁律写入 skill: 不 capture stdout(否则 cron 日志盲)、用项目 venv python、透传 argv、cwd=真身目录。 |

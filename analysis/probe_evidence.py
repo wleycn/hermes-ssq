@@ -5,7 +5,7 @@
 背景 (2026-08-22 tech-writer 审计 R3): ARCHITECTURE 决策记录中的
 "红 H(2)=0.473/蓝 0.493、max_ratio z=-0.81、ECE≈0.007" 等真实数据数值
 此前只在一次未落盘的交互运行中出现, 仓库内无可复现来源。本脚本补上:
-每次运行把结果写入 analysis/results/probe_evidence_YYYY-MM-DD.txt,
+每次运行把结果写入 /home/hermes/workspace/data-center/ssq/analysis/results/probe_evidence_YYYY-MM-DD.txt,
 使决策记录中的数值可被任何后续会话复现/复核。
 
 用法:
@@ -21,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 sys.path.insert(0, str(ROOT))
 
 import numpy as np
@@ -138,7 +139,7 @@ def main() -> None:
     args = ap.parse_args()
     text = run_evidence(args.n_surrogates)
     print(text)
-    out_dir = ROOT / "analysis/results"
+    out_dir = DC_SSQ / "analysis/results"
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"probe_evidence_{datetime.now():%Y-%m-%d}.txt"
     out.write_text(text, encoding="utf-8")

@@ -30,6 +30,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 sys.path.insert(0, str(ROOT))
 
 import psycopg
@@ -99,7 +100,7 @@ def run_probe_evidence(n_surrogates: int = 30) -> Path:
 
     探针体系 2026-08-22 宣布饱和关闭后, 不再新增探针, 但**每月随重训
     重跑一次证据**——监控"摇奖机随机性是否随时间漂移"(如设备更换/
-    数据异常)。产出 analysis/results/probe_evidence_YYYY-MM-DD.txt,
+    数据异常)。产出 /home/hermes/workspace/data-center/ssq/analysis/results/probe_evidence_YYYY-MM-DD.txt,
     与历史证据对比可发现漂移。
 
     Args:
@@ -115,7 +116,7 @@ def run_probe_evidence(n_surrogates: int = 30) -> Path:
          "--n-surrogates", str(n_surrogates)],
         cwd=str(ROOT), check=True)
     from datetime import datetime
-    return ROOT / "analysis" / "results" / f"probe_evidence_{datetime.now():%Y-%m-%d}.txt"
+    return DC_SSQ / "analysis" / "results" / f"probe_evidence_{datetime.now():%Y-%m-%d}.txt"
 
 
 def main():

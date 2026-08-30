@@ -20,8 +20,9 @@ SSQ/
 ├── batch_predict_pg.py           # 批量训练 6 模型 → 概率写入 PostgreSQL
 ├── pg_schema.py                  # PG 建表 + 1.csv 导入 draw_history + data_date 列迁移
 ├── cleanup_predictions.py        # 预测表 30 天滚动清理（仅动了 model_predictions）
-├── select_numbers.py             # 读 PG 集成概率 → 生成 5 组候选号码（等权/EBMA 集成）
-├── send_ssq_picks.py             # 组装中文邮件正文 → smtplib 直发（旧入口，保留）
+├── select_numbers.py             # 读 PG 集成概率 → 单一生成入口 generate_picks(集成→James-Stein收缩→纯wheel 10/20注)
+├── ssq_send_picks.py             # 主入口: generate_picks→落库 predicted_picks→自动镜像→发邮件(生产 cron 调用)
+├── send_ssq_picks.py             # DEPRECATED 旧入口(仅组装旧正文直发, 不再被 cron 调用)
 ├── retrain_pipeline.py           # 一键重训+验证+发邮件（封装 batch_predict_pg + 外部脚本）
 ├── wheel.py                      # 旋转矩阵覆盖设计（贪心 4-子集覆盖）
 ├── reconcile_picks.py            # 开奖推荐命中核对：predicted_picks 逐组比对 → 开奖信 HTML 块（2026-08-20 新增）
@@ -35,7 +36,7 @@ SSQ/
     ├── main.py                   # 模型训练+预测入口（单模型）
     ├── config.py                 # 全局配置（路径、超参数、模型类型）
     ├── ensemble.py               # EBMA 轻量融合模块（零依赖，softmax of 历史 log-likelihood）
-    ├── popularity.py             # 冷号加权（6 规则, λ=0.3, 5 组模式用）
+    ├── popularity.py             # 流行度加权（6 规则, λ=0.3, 用于 wheel 选号加权）
     ├── spectral.py               # 蓝球 3 门随机性测试器（17 个函数）
     ├── spectral_red.py           # 红球 3 路径随机性测试器
     ├── spectral_chaos.py         # 混沌/相空间重构检验器（Takens+Lyapunov+替代检验）
@@ -108,19 +109,15 @@ ml.main 训练 6 模型 (rf / lightgbm / cnn_reg / lstm / transformer / cdm)  # 
    │  batch_predict_pg.py 批量预测 → 写入 PG (每月1号 03:00 cron 自动重训)
    ▼
 PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
-   │  select_numbers.py 读最新 → 集成（等权均值 or EBMA softmax 加权）
-   ├──────────────────────────────┐
-   ▼                              ▼
-5 组候选号码                   wheel 旋转矩阵
-（受控随机加权+奇偶/         （Top-18球池, 30注,
-大小比约束+冷热加权）          4-子集覆盖, pass_rate 95.4%）
-   │                              │
-   └──────────── 合并 ─────────────┘
-                 │
-                 ▼
+   │  select_numbers.generate_picks 读最新 → 集成(等权均值)
+   │  → James-Stein 收缩(默认开) → 纯 wheel 旋转矩阵
+   ▼
+wheel 旋转矩阵 (Top-18球池, 默认 10/20 注, 4-子集覆盖, pass_rate≈95.4%; top5 锚已弃用)
+   │
+   ▼
         邮件推送（开奖日 22:15 cron 触发 ssq_send_picks.py）
-        - 5组(按流行度降序) + wheel 30注
-        - 主题：双色球XXXXXX期推荐: 5组 + wheel30注(通过率95.4%)
+        - 生成 → 落库 PG predicted_picks(单真源) → 自动镜像 data-center/ssq/picks
+        - 主题：双色球XXXXXX期推荐: wheel 10注 + wheel 20注 (通过率95.4%)
         ▼
         开奖日 22:00 cron: update_ssq.py 三源抓取 → 追加 1.csv → 发开奖信
         - 开奖信追加"与推荐号码核对"块(逐组 ✅/— 命中明细, 读 predicted_picks 只读比对)
@@ -151,12 +148,12 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 ### 3. 选号 + 邮件推送
 
 ```bash
-.venv/bin/python send_ssq_picks.py            # 生成并发送邮件
-.venv/bin/python send_ssq_picks.py --dry-run  # 只打印正文不发送
-.venv/bin/python send_ssq_picks.py --seed 7   # 换随机种子重生成
+.venv/bin/python ssq_send_picks.py            # 生成并发送邮件
+.venv/bin/python ssq_send_picks.py --dry-run  # 只打印正文不发送
+.venv/bin/python ssq_send_picks.py --seed 7   # 换随机种子重生成
 ```
 
-邮件含：5 组候选号码、热号标注（集成概率前 8）、完整选取逻辑说明。
+邮件含：纯 wheel 选号（默认 10/20 注，含通过率说明）、热号标注（集成概率前 8）、完整选取逻辑说明。
 
 ### 4. PostgreSQL 存储层
 
@@ -209,7 +206,7 @@ PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
 开奖信（22:00 cron）除报告开奖号外，自动把**该期推荐**逐组与开奖号比对，免去肉眼核对：
 
 - **期号对齐（关键）**：开奖信核对的是 `predicted_picks WHERE period = 开奖期号 P`——即**上一期开奖后 22:15 发出的 P 期推荐**；当天 22:15 发的是 P+1 期推荐，**不参与**当晚核对。
-- **比对内容**：A. 常规 5 组 + B. wheel 30 注，每组红球逐号标注 `✅`（命中，红色）/ `—`（未中，灰色），蓝球 `✅`/`—`，并给出结果（如"中3红+蓝 · 五等奖"）。
+- **比对内容**：按 `mode` 动态分组（现行 `wheel` 10/20 注 + 兼容历史 `top5` 5 组 / `wheel` 30 注），每组红球逐号标注 `✅`（命中，红色）/ `—`（未中，灰色），蓝球 `✅`/`—`，并给出结果（如"中3红+蓝 · 五等奖"）。
 - **容错**：读 PG `predicted_picks` 只读；查不到当期推荐（上次发预测未成功）或 PG 异常时，开奖信降级为"无推荐记录/核对暂不可用"占位，**不影响开奖入库与发信**。
 - **邮件格式**：开奖信整体为 HTML（`send_email(..., html=True)`），正文追加 `<hr>` + 核对块。
 
@@ -372,7 +369,7 @@ lstm,blue,7,0.085432
 | **1.csv** | 历史开奖数据表（3494 期，每行一期）。**生产系统的唯一权威数据源**——所有模型、检验都读它，永远以它为准。类比：这是"原始账本"，后续所有分析都是它的副本或加工。 |
 | **draw_history** | 1.csv 在 PostgreSQL 里的**镜像备份归档**。开奖后 `update_ssq` 自动 upsert 写入（与 1.csv 同步），`pg_schema.py` 可作整表重建兜底。全量保留永不清理（原 H1"只读/手动同步"已于 2026-08-26 拍板废止）。 |
 | **model_predictions** | 6 个模型对每个号码"觉得多可能中奖"的概率表，存 PG。每模型每球种（红33/蓝16）独立记最新一批（用 `run_at` 时间戳区分）。类比：6 个评委各给 33 个红球 + 16 个蓝球打分，打分表就在这里。 |
-| **predicted_picks** | 集成概率后**实际选出的号码**落库表（top5 组 + wheel 30 注），带期号、流行度、seed，用于日后复盘"当初选了啥、中没中"。 |
+| **predicted_picks** | 集成概率后**实际选出的号码**落库表（现行纯 wheel 10/20 注 + 历史兼容 top5 5组/wheel30），带期号、流行度、seed、pool_size、wheel_notes，用于日后复盘"当初选了啥、中没中"。 |
 | **run_at / data_date** | `run_at`=模型跑出的时间戳（精确到秒，区分不同批次）；`data_date`=北京日期（哪一期）。预测在开奖日前生成，预测的是"下一期"——所以 `data_date` 永远领先实际开奖日。 |
 | **i.i.d. (独立同分布)** | Independent and Identically Distributed = "每期开奖互不影响、且都服从同一套随机规律"。本系统所有随机性检验的**原假设**（默认假定）：目前**未被推翻**。这是整条科学立场的基石——如果开奖不 i.i.d.，才可能出现可预测结构。 |
 | **原假设 / 备择假设** | 统计检验的两种立场：原假设 H0="没结构、纯随机"；备择假设 H1="有结构、可预测"。检验是"试着推翻 H0"，推不翻就**保留 H0**（即认了随机）。本系统所有探针都是在试推翻 H0，结果都推不翻。 |

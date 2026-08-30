@@ -103,9 +103,17 @@ def parse_cwl_latest() -> dict | None:
     if data.get("state") != 0 or not data.get("result"):
         return None
     res = data["result"][0]
-    code = int(res["code"])
-    reds = [int(x) for x in res["red"].split(",")]
-    blue = int(res["blue"])
+    # 鲁棒性: 中彩网偶发脏响应 code="_"/"--"(未开奖/限流), 直接视为无效回退兜底源
+    raw_code = str(res.get("code", "")).strip()
+    if not raw_code.isdigit():
+        return None
+    code = int(raw_code)
+    raw_red = str(res.get("red", "")).strip()
+    raw_blue = str(res.get("blue", "")).strip()
+    if not raw_red or not raw_blue:
+        return None
+    reds = [int(x) for x in raw_red.split(",")]
+    blue = int(raw_blue)
     if len(reds) != 6:
         return None
     # 日期形如 "2026-08-11(二)"，提取真实日期

@@ -12,6 +12,7 @@ import json
 import sys
 import time
 from pathlib import Path
+DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 
 # 确保项目根(含 ml 包)在 sys.path, 使直接 `python analysis/run_comparison.py` 也能 import ml
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -142,7 +143,7 @@ def main():
 
     horizon = args.horizon if args.horizon is not None else (3 if args.smoke else 120)
     train_min = 800
-    out_dir = Path("analysis/results")
+    out_dir = DC_SSQ / "analysis/results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_data()

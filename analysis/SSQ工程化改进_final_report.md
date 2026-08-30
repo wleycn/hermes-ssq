@@ -91,8 +91,8 @@
 - `ml/models/set_model.py::SetRedModel` — 红球集合预测
 - `ml/eval/walk_forward.py` — 滚动验证框架
 - `analysis/run_comparison.py` — 对比测试驱动（4 模型 + 2 基线）
-- `analysis/results/comparison_table.csv` — 最终对比表
-- `analysis/results/wf_*.json` — 每期预测明细
+- `/home/hermes/workspace/data-center/ssq/analysis/results/comparison_table.csv` — 最终对比表
+- `/home/hermes/workspace/data-center/ssq/analysis/results/wf_*.json` — 每期预测明细
 
 **复现命令**：
 ```bash

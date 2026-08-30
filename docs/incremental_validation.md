@@ -2,9 +2,9 @@
 
 > 验证人：TestAutomationEngineer（独立验证，不依赖 Dev 自报）
 > 执行时间：2026-08-13 09:36:56（`run_at`，evaluate.py 落档）
-> 命令：`.venv/bin/python evaluate.py --features ac,entropy,hot_cold,crf,diversity --horizon 100 --train-min 800 --out analysis/results/feature_validation.json`
-> 产物：`analysis/results/feature_validation.json`（全量，n_trials=1000，seed=1，pool_size=12）
-> 基线对照：`analysis/results/validation_baseline_random.json`（random 策略）、`analysis/results/validation_baseline_freq.json`（freq 策略）
+> 命令：`.venv/bin/python evaluate.py --features ac,entropy,hot_cold,crf,diversity --horizon 100 --train-min 800 --out /home/hermes/workspace/data-center/ssq/analysis/results/feature_validation.json`
+> 产物：`/home/hermes/workspace/data-center/ssq/analysis/results/feature_validation.json`（全量，n_trials=1000，seed=1，pool_size=12）
+> 基线对照：`/home/hermes/workspace/data-center/ssq/analysis/results/validation_baseline_random.json`（random 策略）、`/home/hermes/workspace/data-center/ssq/analysis/results/validation_baseline_freq.json`（freq 策略）
 
 ## 判定规则（PRD Q3 裁定）
 
@@ -62,9 +62,9 @@
 
 ```bash
 cd /home/hermes/workspace/python/SSQ
-.venv/bin/python evaluate.py --features ac,entropy,hot_cold,crf,diversity --horizon 100 --train-min 800 --out analysis/results/feature_validation.json
-.venv/bin/python evaluate.py --strategy random --horizon 100 --out analysis/results/validation_baseline_random.json
-.venv/bin/python evaluate.py --strategy freq --horizon 100 --out analysis/results/validation_baseline_freq.json
+.venv/bin/python evaluate.py --features ac,entropy,hot_cold,crf,diversity --horizon 100 --train-min 800 --out /home/hermes/workspace/data-center/ssq/analysis/results/feature_validation.json
+.venv/bin/python evaluate.py --strategy random --horizon 100 --out /home/hermes/workspace/data-center/ssq/analysis/results/validation_baseline_random.json
+.venv/bin/python evaluate.py --strategy freq --horizon 100 --out /home/hermes/workspace/data-center/ssq/analysis/results/validation_baseline_freq.json
 ```
 
 同 seed（默认 1）同 horizon 两次运行结果逐字段一致（已验证可复现）。
