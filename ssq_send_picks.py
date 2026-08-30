@@ -5,12 +5,14 @@
 
 流程:
 1. 读 PG ssq.model_predictions 最新 run_at 集成概率
-2. 生成 A) 5 组(带 popularity 冷门加权, seed=PERIOD)  B) wheel 30 注(池18/30注)
-3. 落库 ssq.predicted_picks(复盘表, 幂等: 同 period+mode+group 先删后插)
-4. smtplib 直发邮件到 wleycn@163.com(绕过 hermes send email bug)
+2. 生成旋转矩阵 Wheel 多尺寸(纯 wheel, 无 Top5 锚): 默认 W10(10注) + W20(20注), 各自独立生成
+3. 落库 ssq.predicted_picks(复盘表, 幂等: 同 period+mode+wheel_notes 先删后插)
+4. 单封邮件: A 区=Wheel10, B 区=Wheel20, 零"锚/结合"过时描述
+5. smtplib 直发邮件到 wleycn@163.com(绕过 hermes send email bug)
 
 注: 模型概率来自最近一次 run(未重训), 不同期仅 seed 不同导致采样差异。
 """
+
 import argparse
 import json
 import os
@@ -28,8 +30,7 @@ PROJECT_ROOT = "/home/hermes/workspace/python/SSQ"
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 import select_numbers as sn
-from ml.popularity import combo_popularity, sample_with_popularity
-from ml.pareto_select import gen_top5_pareto
+from ml.popularity import combo_popularity
 
 DEFAULT_PERIOD = "2026094"
 DEFAULT_SEED = 2026094
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS ssq.predicted_picks (
     id          BIGSERIAL PRIMARY KEY,
     period      TEXT        NOT NULL,           -- 期号, 如 2026094
     run_at      TIMESTAMP   NOT NULL,           -- 生成时间
-    mode        TEXT        NOT NULL,           -- 'top5' | 'wheel'
+    mode        TEXT        NOT NULL,           -- 'wheel'
     group_idx   INT         NOT NULL,           -- 组序号(1-based)
     reds        TEXT        NOT NULL,           -- 红球 '9,11,13,15,20,24'
     blue        INT         NOT NULL,           -- 蓝球
@@ -47,8 +48,8 @@ CREATE TABLE IF NOT EXISTS ssq.predicted_picks (
     seed        INT         NOT NULL,
     pool_size   INT,                            -- wheel 模式红球池大小
     pass_rate   DOUBLE PRECISION,               -- wheel 模式 6-子集通过率
-    n_notes     INT,                            -- wheel 模式总注数(内部生成量)
-    wheel_notes INT                             -- 结合方案预算: 10/20/30 (区分 W10/W20/W30)
+    n_notes     INT,                            -- wheel 模式总注数
+    wheel_notes INT                             -- 尺寸预算: 10/20/30 (区分 W10/W20/W30)
 );
 CREATE INDEX IF NOT EXISTS idx_predicted_picks_period ON ssq.predicted_picks(period);
 """
@@ -61,48 +62,13 @@ def load_probs(conn):
     return sn.load_latest_probs(conn)
 
 
-def gen_top5(red_mean, blue_mean, rng):
-    """5 组: 红球 popularity 冷门加权采样, 蓝球受控随机. 返回带流行度注单列表(流行度降序)."""
-    out = []
-    for g in range(5):
-        reds = sample_with_popularity(red_mean, rng, temperature=0.6,
-                                      lambda_=0.3, n_candidates=200)
-        blue = int(sn._sample_blue(blue_mean, rng))  # 已 1-indexed
-        out.append({"group": g + 1, "reds": [int(n) for n in reds], "blue": blue,
-                    "popularity": float(combo_popularity(reds))})
-    return sorted(out, key=lambda x: x["popularity"], reverse=True)
-
-
-def gen_wheel(red_mean, blue_mean, seed, total_notes=20, extra=5):
-    """生成 Wheel 候选: Top-18 概率池 → greedy_cover。
-    total_notes = 对外结合后总注数(10/20/30); 内部多生成 extra 注作去重余量。
-    最终由 merge_top5_wheel 把 Top5 的 5 注作锚嵌入, 结合总注 = total_notes(非 5+total 叠加)。"""
+def gen_wheel(red_mean, blue_mean, seed, total_notes=20):
+    """生成纯 Wheel 注单: Top-18 概率池 → greedy_cover 覆盖, 直接生成 total_notes 注。
+    不再嵌入 Top5 锚(锚方案已弃用), W10/W20 各自独立生成、互不嵌套共享注。"""
     res = sn.build_wheel_tickets(red_mean, blue_mean, pool_size=18,
-                                 max_notes=total_notes + extra, restarts=3, seed=seed,
+                                 max_notes=total_notes, restarts=3, seed=seed,
                                  popularity_fn=None, lambda_=0.3)
     return res
-
-
-def merge_top5_wheel(top5, wheel_tickets, total):
-    """结合(非叠加): Top5 的 5 注作为锚必含, 从 Wheel 候选按流行度挑 total-5 注去重补足,
-    使最终总注 = total(10/20/30)。预算固定为 N, 而非 5+N 的简单叠加——这才是'结合'的意义:
-    用 Top5 的冷门加权智慧播种 Wheel 的覆盖, 而非两份独立票相加。
-
-    返回 merged 列表(长度=total; 前 len(top5) 为 Top5 锚, 其后为 Wheel 补足)。
-    若 Wheel 去重后可用注不足 total-5(罕见, extra 余量足够时不会发生), 则取全部可用注。"""
-    if total < len(top5):
-        raise ValueError(f"total_notes({total}) 必须 ≥ Top5 注数({len(top5)})")
-    out = list(top5)
-    seen = {(tuple(sorted(g["reds"])), g["blue"]) for g in top5}
-    for t in sorted(wheel_tickets, key=lambda x: x["popularity"], reverse=True):
-        if len(out) >= total:
-            break
-        k = (tuple(sorted(t["reds"])), t["blue"])
-        if k in seen:
-            continue
-        seen.add(k)
-        out.append(t)
-    return out
 
 
 def db_clear_mode(conn, period, mode, wheel_notes=None):
@@ -142,12 +108,7 @@ SEND_EMAIL_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email
 
 
 def send_email(subject, html_body):
-    """统一收件: 调 send_email.py 中枢 (To=126 + Cc=163 由 .env 兜底, 见中枢).
-
-    说明: 早期版本内嵌 smtplib 硬编码 163 并称'绕过 hermes send email bug';
-    现 hermes 发信通道已验证可用, 收敛到统一中枢, 不再各自维护 smtp 逻辑.
-    """
-    # 临时落盘 html 正文, 交给中枢发送 (HTML 模式)
+    """统一收件: 调 send_email.py 中枢 (To=126 + Cc=163 由 .env 兜底, 见中枢)."""
     tmp = Path("/tmp/ssq_picks_body.html")
     tmp.write_text(html_body, encoding="utf-8")
     cmd = [sys.executable, str(SEND_EMAIL_CLI),
@@ -162,53 +123,42 @@ def send_email(subject, html_body):
         print(f"[email] 异常: {e}")
 
 
-def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20,
-                merged_total=None, anchor_mode="popularity"):
-    """组装邮件 HTML: Top5 锚(优先) + Wheel 补足(去重后并集) + 覆盖率报告."""
-    res = wheel  # build_wheel_tickets 返回 dict
-    rows5 = "".join(
-        f"<tr><td>{g['group']}</td><td><b>{' '.join(f'{r:02d}' for r in g['reds'])}</b></td>"
-        f"<td><b>{g['blue']:02d}</b></td><td>{g['popularity']:.3f}</td></tr>"
-        for g in top5)
-    cov = res["coverage"]
-    wt = res["tickets"]  # 已是去重后的 wheel 补足部分
-    rows_w = "".join(
-        f"<tr><td>{i+1}</td><td>{' '.join(f'{r:02d}' for r in t['reds'])}</td>"
-        f"<td>{t['blue']:02d}</td><td>{t['popularity']:.3f}</td></tr>"
-        for i, t in enumerate(sorted(wt, key=lambda x: x["popularity"], reverse=True)))
-    total = merged_total if merged_total is not None else (len(top5) + len(wt))
+def render_html(period, seed, run_at, wheels: dict):
+    """组装单封邮件: A 区=Wheel10, B 区=Wheel20, 纯 wheel 无锚描述。
+    wheels: {10: (tickets, cov), 20: (tickets, cov)} 按尺寸键排序输出。"""
+    def rows_html(tickets):
+        return "".join(
+            f"<tr><td>{i+1}</td><td>{' '.join(f'{r:02d}' for r in t['reds'])}</td>"
+            f"<td>{t['blue']:02d}</td><td>{t['popularity']:.3f}</td></tr>"
+            for i, t in enumerate(sorted(tickets, key=lambda x: x['popularity'], reverse=True)))
+
+    section_labels = {10: "A", 20: "B", 30: "C"}
+    sections = ""
+    for N in sorted(wheels.keys()):
+        tickets, cov = wheels[N]
+        label = section_labels.get(N, str(N))
+        sections += f"""
+<h3>{label}. 旋转矩阵 Wheel {N} 注（红球池 18 / 共 {N} 注）</h3>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>#</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows_html(tickets)}
+</table>
+<p>覆盖率: 4-子集 {cov['four_subset_coverage']*100:.2f}% ｜ 6-子集通过率 {cov['pass_rate']*100:.2f}% ｜ 注数 {cov['n_notes']} ｜ 池大小 {cov.get('pool_size','-')} ｜ 收敛 {cov['converged']}</p>
+<p>说明: 若 6 个奖号全部落在池内(概率 C(18,6)/C(33,6)≈17.7%), {N} 注中至少一注中 4 红以上的概率为 {cov['pass_rate']*100:.2f}%。</p>
+"""
     return f"""<html><body style="font-family:sans-serif">
 <h2>双色球 {period} 期推荐（下一期开奖）</h2>
 <p>数据源: 模型集成概率 run_at={run_at}；生成 seed={seed}（可复现）</p>
-<p>锚策略: <b>{'Pareto 轻量多目标' if anchor_mode=='pareto' else '冷门加权采样'}</b>（Top5 锚生成方式）</p>
-
-<h3>A. Top5 锚（红球冷门加权 + 蓝球受控随机，作为结合必含项）</h3>
-<table border="1" cellpadding="4" cellspacing="0">
-<tr><th>组</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows5}
-</table>
-<p>注: 流行度越低越冷门(避开连号/生日号/全奇偶等热门组合)；仅供娱乐参考。</p>
-
-<h3>B. 旋转矩阵 Wheel 补足（池18 / 候选 {wheel_notes}注，与 A 去重并集至总预算）</h3>
-<table border="1" cellpadding="4" cellspacing="0">
-<tr><th>#</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows_w}
-</table>
-<p>覆盖率: 4-子集 {cov['four_subset_coverage']*100:.2f}% ｜ 6-子集通过率 {cov['pass_rate']*100:.2f}% ｜ 注数 {cov['n_notes']} ｜ 池大小 {cov.get('pool_size','-')} ｜ 收敛 {cov['converged']}</p>
-<p>说明: 若 6 个奖号全部落在池内(概率 C(18,6)/C(33,6)≈17.7%)，{wheel_notes} 注中至少一注中 4 红以上的概率为 {cov['pass_rate']*100:.2f}%。</p>
-<p><b>结合总注数 = {total}（A 锚 5 + B 补足 {len(wt)}；Top5 已嵌入而非叠加，预算固定为 {wheel_notes}）。</b></p>
-<p>诚实声明: 四法同吃 FLAT 概率, 每注命中率均=随机下限(≈1.09红/注); 覆盖差异只在规模/成本, 不在精度。仅供娱乐参考。</p>
+{sections}
+<p><b>诚实声明:</b> 双色球为独立随机抽取, 任何方法无法突破随机下限(每注期望命中 ≈1.09 红/注)。本推荐仅以旋转矩阵提升"若奖号落池则中 4 红以上"的覆盖概率, 并不提升中奖本身概率。以上方案仅供娱乐参考。</p>
 </body></html>"""
 
 
 def compute_next_period(csv_path: str = None) -> tuple[str, int, str | None]:
     """自动算下一期期号: 读 1.csv 最新一行 dNum, 下一期 = dNum+1。
-
-    返回 (period_str, seed_int, latest_date_str)。
-    latest_date_str 为本期开奖日期, 供状态门判断'本期是否已开奖'。
-    """
+    返回 (period_str, seed_int, latest_date_str)。"""
     import csv
     if csv_path is None:
         csv_path = str(Path(__file__).resolve().parent / "ml" / "data" / "1.csv")
-    # 注意: 脚本在 ~/.hermes/scripts/, 项目在 /home/hermes/workspace/python/SSQ
     proj = Path("/home/hermes/workspace/python/SSQ/ml/data/1.csv")
     if proj.exists():
         csv_path = str(proj)
@@ -234,15 +184,8 @@ def main():
                     help="自动从 1.csv 算下一期期号(默认开)")
     ap.add_argument("--no-auto-next", dest="auto_next", action="store_false",
                     help="关闭自动算期, 必须显式 --period")
-    ap.add_argument("--wheel-notes", type=int, default=20,
-                    help="单尺寸兼容: 指定一个 wheel 尺寸(10/20/30); 与 --wheels 互斥, 优先级低")
-    ap.add_argument("--wheels", type=str, default=None,
-                    help="多尺寸逗号分隔, 如 '10,20'; 同时生成 W10+W20 并落库/发信(对应你的偏好)")
-    ap.add_argument("--anchor-mode", choices=["popularity", "pareto"], default="popularity",
-                    help="Top5 锚生成策略: popularity=原冷门加权采样(lambda=0.3); "
-                         "pareto=轻量NSGA-II思路(非支配排序取代表性锚注, 显式多目标取舍)")
-    ap.add_argument("--pareto-pool", type=int, default=300,
-                    help="pareto 模式下候选注池大小(默认300)")
+    ap.add_argument("--wheels", type=str, default="10,20",
+                    help="多尺寸逗号分隔, 如 '10,20'; 单封邮件 A/B 区各对应一个尺寸")
     ap.add_argument("--no-email", action="store_true",
                     help="不发送邮件(仅落库+打印, 用于测试/验证)")
     ap.add_argument("--dry-run", action="store_true",
@@ -254,7 +197,6 @@ def main():
     else:
         period, seed_auto, latest_date = compute_next_period()
         seed = args.seed or seed_auto
-        # 状态门: 打印本期开奖日期, 供人工核对(本期应已由抓开奖 cron 入库)
         print(f"[auto-next] 最新已开奖期={int(period)-1}, 推算下一期={period}"
               f"(本期开奖日期={latest_date})")
 
@@ -266,77 +208,55 @@ def main():
         cur.execute(ALTER_DDL)  # 列迁移兜底: 旧表补 wheel_notes 列
         conn.commit()
     red_mean, blue_mean, run_at, models = load_probs(conn)
-    rng = np.random.default_rng(seed)
-    if args.anchor_mode == "pareto":
-        # 轻量 NSGA-II 思路: 候选池 -> 非支配排序 -> 代表性锚注
-        pareto_raw = gen_top5_pareto(red_mean, blue_mean, rng,
-                                     pool_size=args.pareto_pool, top5_count=5)
-        # 转成与原 gen_top5 同 schema (额外带 score 供复盘)
-        top5 = [{"group": i + 1,
-                 "reds": t["reds"], "blue": t["blue"],
-                 "popularity": float(combo_popularity(t["reds"])),
-                 "score": t["score"]}
-                for i, t in enumerate(pareto_raw)]
-        print(f"[anchor] mode=pareto pool={args.pareto_pool} "
-              f"前沿代表点={len(top5)} (多维目标已显式取舍)")
-    else:
-        top5 = gen_top5(red_mean, blue_mean, rng)
 
-    # 解析目标尺寸: --wheels '10,20' 优先; 否则单 --wheel-notes
-    if args.wheels:
-        sizes = [int(x) for x in args.wheels.split(",") if x.strip()]
-    else:
-        sizes = [args.wheel_notes]
+    # 解析目标尺寸
+    sizes = [int(x) for x in args.wheels.split(",") if x.strip()]
     if not sizes:
-        sizes = [20]
-    print(f"[config] anchor_mode={args.anchor_mode} 尺寸={sizes}")
+        sizes = [10, 20]
+    print(f"[config] 纯 wheel 尺寸={sizes} (无锚/无结合)")
 
     now = datetime.now()
-    # Top5 锚只生成一次(与 N 无关), 各尺寸复用为结合锚
+    # 清理上一版残留的 top5 锚行(纯 wheel 模式已弃用锚, 旧数据留在库里会污染复盘)
+    db_clear_mode(conn, period, "top5")
+    wheels: dict[int, tuple] = {}
     for N in sizes:
-        wheel = gen_wheel(red_mean, blue_mean, seed, total_notes=N, extra=5)
-        # ①+②: Top5 的 5 注作锚必含, 从 Wheel 候选补足至总注=N(结合非叠加)
-        merged = merge_top5_wheel(top5, wheel["tickets"], total=N)
-        top5_anchor = merged[:len(top5)]
-        wheel_fill = merged[len(top5):]  # Wheel 补足部分(已去重, 不含 Top5 锚)
+        # 各尺寸独立派生 seed, 保证 W10/W20 注单独立生成(不嵌套共享)
+        wseed = seed + (N % 1000)
+        wheel = gen_wheel(red_mean, blue_mean, wseed, total_notes=N)
+        tickets = wheel["tickets"]
         cov = wheel["coverage"]
-        print(f"[combine] N={N} 结合总注={len(merged)} "
-              f"(Top5锚{len(top5_anchor)} + Wheel补{len(wheel_fill)}) "
-              f"pass_rate={cov['pass_rate']:.4f} run_at={run_at}")
+        print(f"[wheel] N={N} 生成注={len(tickets)} pass_rate={cov['pass_rate']:.4f}")
+        wheels[N] = (tickets, cov)
 
         if args.dry_run:
-            print(f"[dry-run] N={N} 不落库不发送。结合总注={len(merged)}。")
+            print(f"[dry-run] N={N} 不落库不发送。")
             continue
 
         # 落库前清空该期+该尺寸旧行(防历史残留 + 尺寸间互不影响)
-        db_clear_mode(conn, period, "top5", wheel_notes=N)
         db_clear_mode(conn, period, "wheel", wheel_notes=N)
-        # 落库 A: Top5 锚(5 注, 标记 top5 + wheel_notes=N 便于按尺寸复盘)
-        for g in top5_anchor:
-            db_upsert(conn, period, now, "top5", g["group"],
-                      ",".join(f"{r:02d}" for r in g["reds"]),
-                      g["blue"], g["popularity"], seed, wheel_notes=N)
-        # 落库 B: Wheel 补足部分(标记 wheel + wheel_notes=N)
-        for i, t in enumerate(wheel_fill, 1):
+        for i, t in enumerate(tickets, 1):
             db_upsert(conn, period, now, "wheel", i,
                       ",".join(f"{r:02d}" for r in t["reds"]),
                       t["blue"], t["popularity"], seed,
                       pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
                       n_notes=cov["n_notes"], wheel_notes=N)
 
-        # 邮件
-        title = (f"双色球{period}期推荐[W{N}]: Top5+Wheel 结合{N}注"
-                 f"(通过率{cov['pass_rate']*100:.1f}%)")
-        print(f"[db] period={period} N={N} 结合总注={len(merged)} "
-              f"(top5锚{len(top5_anchor)}+wheel补{len(wheel_fill)}) "
-              f"pass_rate={cov['pass_rate']:.4f}")
-        if not args.no_email:
-            send_email(title, render_html(period, seed, run_at, top5_anchor,
-                                          {"coverage": cov, "tickets": wheel_fill},
-                                          dropped=0, wheel_notes=N,
-                                          merged_total=len(merged), anchor_mode=args.anchor_mode))
-        else:
-            print(f"[no-email] N={N} 跳过发信。标题={title}")
+    if args.dry_run:
+        conn.close()
+        return
+
+    # 单封邮件: A=Wheel10, B=Wheel20, ...
+    def _pr(n):
+        return f"{wheels.get(n, (None, {}))[1].get('pass_rate', 0)*100:.1f}%"
+    sizes_sorted = sorted(wheels.keys())
+    title = (f"双色球{period}期推荐: "
+             + " + ".join(f"Wheel{n}({_pr(n)})" for n in sizes_sorted)
+             + " 双尺寸")
+    print(f"[email] 组装单封邮件, 尺寸={sizes_sorted}")
+    if not args.no_email:
+        send_email(title, render_html(period, seed, run_at, wheels))
+    else:
+        print(f"[no-email] 跳过发信。标题={title}")
 
     # 落库确认(全尺寸)
     with conn.cursor() as cur:
