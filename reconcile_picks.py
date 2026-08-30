@@ -30,15 +30,16 @@ def connect() -> Any:
 
 
 def fetch_picks(conn: Any, period: str) -> list[dict]:
-    """读当期推荐行, 按 mode, group_idx 排序。无记录返回空列表。"""
+    """读当期推荐行, 按 mode, wheel_notes, group_idx 排序. 无记录返回空列表."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT mode, group_idx, reds, blue, popularity, seed "
-            "FROM ssq.predicted_picks WHERE period=%s ORDER BY mode, group_idx",
+            "SELECT mode, group_idx, reds, blue, popularity, seed, wheel_notes "
+            "FROM ssq.predicted_picks WHERE period=%s "
+            "ORDER BY wheel_notes NULLS LAST, mode, group_idx",
             (period,))
         rows = cur.fetchall()
     out = []
-    for mode, gidx, reds, blue, popularity, seed in rows:
+    for mode, gidx, reds, blue, popularity, seed, wn in rows:
         out.append({
             "mode": mode,
             "group_idx": int(gidx),
@@ -46,6 +47,7 @@ def fetch_picks(conn: Any, period: str) -> list[dict]:
             "blue": int(blue),
             "popularity": float(popularity) if popularity is not None else None,
             "seed": int(seed),
+            "wheel_notes": int(wn) if wn is not None else None,
         })
     return out
 
@@ -79,6 +81,7 @@ def analyze_hits(drawn_reds: list[int], drawn_blue: int, picks: list[dict]) -> l
             "group_idx": p["group_idx"],
             "reds": p["reds"],
             "blue": p["blue"],
+            "wheel_notes": p.get("wheel_notes"),
             "hit_reds": hit_reds,
             "red_count": len(hit_reds),
             "blue_hit": blue_hit,
@@ -120,31 +123,49 @@ def _rows_html(analyzed: list[dict], mode: str) -> str:
 
 def render_hits_html(period: str, drawn_reds: list[int], drawn_blue: int,
                      analyzed: list[dict]) -> str:
-    """生成命中核对 HTML 块(与推荐信同风格), 追加到开奖信。"""
-    n_top5 = sum(1 for a in analyzed if a["mode"] == "top5")
-    n_wheel = sum(1 for a in analyzed if a["mode"] == "wheel")
-    hit_top5 = sum(1 for a in analyzed if a["mode"] == "top5"
-                   and (a["red_count"] > 0 or a["blue_hit"]))
-    hit_wheel = sum(1 for a in analyzed if a["mode"] == "wheel"
-                    and (a["red_count"] > 0 or a["blue_hit"]))
+    """生成命中核对 HTML 块(与推荐信同风格), 追加到开奖信.
+
+    按 wheel_notes 分组 (W10 / W20 / W30 ...), 每组出 A.Top5 + B.Wheel 两张表;
+    无 wheel_notes 的旧记录(兼容) 归到 '旧版' 组.
+    """
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for a in analyzed:
+        wn = a.get("wheel_notes")
+        groups[wn if wn is not None else -1].append(a)  # -1 = 旧版兼容
+
+    # 排序: 有尺寸的自然数序在前, -1(旧版) 最后
+    ordered = sorted(groups.keys(), key=lambda k: (k == -1, k if k != -1 else 0))
+
     style = 'border="1" cellpadding="4" cellspacing="0"'
     parts = [
         "<hr>",
         f"<h3>📊 与推荐号码核对(第{period}期, 开奖前已发出的推荐)</h3>",
         f"<p>开奖号: 红球 <b>{' '.join(f'{x:02d}' for x in drawn_reds)}</b> "
-        f"蓝球 <b>{drawn_blue:02d}</b> ｜ 本信命中数: "
-        f"A 组 {hit_top5}/{n_top5} 注有奖 · B 组 {hit_wheel}/{n_wheel} 注有奖</p>",
+        f"蓝球 <b>{drawn_blue:02d}</b></p>",
     ]
-    if n_top5:
+    for wn in ordered:
+        label = f"W{wn}" if wn is not None else "旧版"
+        grp = groups[wn]
+        n_top5 = sum(1 for a in grp if a["mode"] == "top5")
+        n_wheel = sum(1 for a in grp if a["mode"] == "wheel")
+        hit_top5 = sum(1 for a in grp if a["mode"] == "top5"
+                       and (a["red_count"] > 0 or a["blue_hit"]))
+        hit_wheel = sum(1 for a in grp if a["mode"] == "wheel"
+                        and (a["red_count"] > 0 or a["blue_hit"]))
         parts.append(
-            f'<h4>A. 常规 5 组</h4><table {style}>'
-            f"<tr><th>组</th><th>红球(命中✅)</th><th>蓝球</th><th>结果</th></tr>"
-            f"{_rows_html(analyzed, 'top5')}</table>")
-    if n_wheel:
-        parts.append(
-            f'<h4>B. 旋转矩阵 wheel 30 注</h4><table {style}>'
-            f"<tr><th>#</th><th>红球(命中✅)</th><th>蓝球</th><th>结果</th></tr>"
-            f"{_rows_html(analyzed, 'wheel')}</table>")
+            f"<h4>组合 {label} (总注 {n_top5 + n_wheel}) — "
+            f"A 组 {hit_top5}/{n_top5} 注有奖 · B 组 {hit_wheel}/{n_wheel} 注有奖</h4>")
+        if n_top5:
+            parts.append(
+                f'<table {style}>'
+                f"<tr><th>组</th><th>红球(命中✅)</th><th>蓝球</th><th>结果</th></tr>"
+                f"{_rows_html(grp, 'top5')}</table>")
+        if n_wheel:
+            parts.append(
+                f'<table {style}>'
+                f"<tr><th>#</th><th>红球(命中✅)</th><th>蓝球</th><th>结果</th></tr>"
+                f"{_rows_html(grp, 'wheel')}</table>")
     parts.append("<p>仅供娱乐参考; 中奖以官方开奖公告为准。</p>")
     return "\n".join(parts)
 

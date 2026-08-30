@@ -47,10 +47,13 @@ CREATE TABLE IF NOT EXISTS ssq.predicted_picks (
     seed        INT         NOT NULL,
     pool_size   INT,                            -- wheel 模式红球池大小
     pass_rate   DOUBLE PRECISION,               -- wheel 模式 6-子集通过率
-    n_notes     INT                             -- wheel 模式注数
+    n_notes     INT,                            -- wheel 模式总注数(内部生成量)
+    wheel_notes INT                             -- 结合方案预算: 10/20/30 (区分 W10/W20/W30)
 );
 CREATE INDEX IF NOT EXISTS idx_predicted_picks_period ON ssq.predicted_picks(period);
 """
+# 列迁移兜底: 旧表无 wheel_notes 列时补齐 (幂等)
+ALTER_DDL = "ALTER TABLE ssq.predicted_picks ADD COLUMN IF NOT EXISTS wheel_notes INT;"
 
 
 def load_probs(conn):
@@ -102,29 +105,36 @@ def merge_top5_wheel(top5, wheel_tickets, total):
     return out
 
 
-def db_clear_mode(conn, period, mode):
-    """落库前整批清空该 period+mode 旧行(防历史 wheel30 残留 group_idx>新注数)."""
+def db_clear_mode(conn, period, mode, wheel_notes=None):
+    """落库前整批清空该 period+mode(+wheel_notes)旧行. wheel_notes=None 时清该 mode 全部尺寸."""
     with conn.cursor() as cur:
-        cur.execute(
-            "DELETE FROM ssq.predicted_picks WHERE period=%s AND mode=%s",
-            (period, mode))
+        if wheel_notes is None:
+            cur.execute(
+                "DELETE FROM ssq.predicted_picks WHERE period=%s AND mode=%s",
+                (period, mode))
+        else:
+            cur.execute(
+                "DELETE FROM ssq.predicted_picks WHERE period=%s AND mode=%s AND wheel_notes=%s",
+                (period, mode, wheel_notes))
     conn.commit()
 
 
 def db_upsert(conn, period, run_at, mode, group_idx, reds, blue,
-              popularity, seed, pool_size=None, pass_rate=None, n_notes=None):
-    """插入一行预测. 同 period+mode+group_idx 先删(幂等重跑)."""
+              popularity, seed, pool_size=None, pass_rate=None, n_notes=None,
+              wheel_notes=None):
+    """插入一行预测. 同 period+mode+group_idx+wheel_notes 先删(幂等重跑)."""
     with conn.cursor() as cur:
         cur.execute(
-            "DELETE FROM ssq.predicted_picks WHERE period=%s AND mode=%s AND group_idx=%s",
-            (period, mode, group_idx))
+            "DELETE FROM ssq.predicted_picks "
+            "WHERE period=%s AND mode=%s AND group_idx=%s AND wheel_notes IS NOT DISTINCT FROM %s",
+            (period, mode, group_idx, wheel_notes))
         cur.execute(
             """INSERT INTO ssq.predicted_picks
                (period, run_at, mode, group_idx, reds, blue, popularity, seed,
-                pool_size, pass_rate, n_notes)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                pool_size, pass_rate, n_notes, wheel_notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (period, run_at, mode, group_idx, reds, blue, popularity, seed,
-             pool_size, pass_rate, n_notes))
+             pool_size, pass_rate, n_notes, wheel_notes))
     conn.commit()
 
 
@@ -152,7 +162,8 @@ def send_email(subject, html_body):
         print(f"[email] 异常: {e}")
 
 
-def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20, merged_total=None):
+def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20,
+                merged_total=None, anchor_mode="popularity"):
     """组装邮件 HTML: Top5 锚(优先) + Wheel 补足(去重后并集) + 覆盖率报告."""
     res = wheel  # build_wheel_tickets 返回 dict
     rows5 = "".join(
@@ -169,6 +180,7 @@ def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20, me
     return f"""<html><body style="font-family:sans-serif">
 <h2>双色球 {period} 期推荐（下一期开奖）</h2>
 <p>数据源: 模型集成概率 run_at={run_at}；生成 seed={seed}（可复现）</p>
+<p>锚策略: <b>{'Pareto 轻量多目标' if anchor_mode=='pareto' else '冷门加权采样'}</b>（Top5 锚生成方式）</p>
 
 <h3>A. Top5 锚（红球冷门加权 + 蓝球受控随机，作为结合必含项）</h3>
 <table border="1" cellpadding="4" cellspacing="0">
@@ -223,7 +235,9 @@ def main():
     ap.add_argument("--no-auto-next", dest="auto_next", action="store_false",
                     help="关闭自动算期, 必须显式 --period")
     ap.add_argument("--wheel-notes", type=int, default=20,
-                    help="wheel 注数(默认20; 10/20/30 任配, walk-forward 验 20 为甜点)")
+                    help="单尺寸兼容: 指定一个 wheel 尺寸(10/20/30); 与 --wheels 互斥, 优先级低")
+    ap.add_argument("--wheels", type=str, default=None,
+                    help="多尺寸逗号分隔, 如 '10,20'; 同时生成 W10+W20 并落库/发信(对应你的偏好)")
     ap.add_argument("--anchor-mode", choices=["popularity", "pareto"], default="popularity",
                     help="Top5 锚生成策略: popularity=原冷门加权采样(lambda=0.3); "
                          "pareto=轻量NSGA-II思路(非支配排序取代表性锚注, 显式多目标取舍)")
@@ -249,6 +263,8 @@ def main():
     with conn.cursor() as cur:
         cur.execute(DDL)  # 幂等建表
         conn.commit()
+        cur.execute(ALTER_DDL)  # 列迁移兜底: 旧表补 wheel_notes 列
+        conn.commit()
     red_mean, blue_mean, run_at, models = load_probs(conn)
     rng = np.random.default_rng(seed)
     if args.anchor_mode == "pareto":
@@ -265,55 +281,67 @@ def main():
               f"前沿代表点={len(top5)} (多维目标已显式取舍)")
     else:
         top5 = gen_top5(red_mean, blue_mean, rng)
-    # 结合预算 = 总注数(10/20/30); 内部多生成 extra 注作锚嵌入余量
-    wheel = gen_wheel(red_mean, blue_mean, seed, total_notes=args.wheel_notes, extra=5)
 
-    # ①+②: Top5 的 5 注作锚必含, 从 Wheel 候选补足至总注=args.wheel_notes(结合非叠加)
-    merged = merge_top5_wheel(top5, wheel["tickets"], total=args.wheel_notes)
-    top5_anchor = merged[:len(top5)]
-    wheel_fill = merged[len(top5):]  # Wheel 补足部分(已去重, 不含 Top5 锚)
+    # 解析目标尺寸: --wheels '10,20' 优先; 否则单 --wheel-notes
+    if args.wheels:
+        sizes = [int(x) for x in args.wheels.split(",") if x.strip()]
+    else:
+        sizes = [args.wheel_notes]
+    if not sizes:
+        sizes = [20]
+    print(f"[config] anchor_mode={args.anchor_mode} 尺寸={sizes}")
 
     now = datetime.now()
-    print(f"[combine] period={period} 结合总注={len(merged)} "
-          f"(Top5锚{len(top5_anchor)} + Wheel补{len(wheel_fill)}) "
-          f"wheel候选池={len(wheel['tickets'])} pass_rate={wheel['coverage']['pass_rate']:.4f} run_at={run_at}")
+    # Top5 锚只生成一次(与 N 无关), 各尺寸复用为结合锚
+    for N in sizes:
+        wheel = gen_wheel(red_mean, blue_mean, seed, total_notes=N, extra=5)
+        # ①+②: Top5 的 5 注作锚必含, 从 Wheel 候选补足至总注=N(结合非叠加)
+        merged = merge_top5_wheel(top5, wheel["tickets"], total=N)
+        top5_anchor = merged[:len(top5)]
+        wheel_fill = merged[len(top5):]  # Wheel 补足部分(已去重, 不含 Top5 锚)
+        cov = wheel["coverage"]
+        print(f"[combine] N={N} 结合总注={len(merged)} "
+              f"(Top5锚{len(top5_anchor)} + Wheel补{len(wheel_fill)}) "
+              f"pass_rate={cov['pass_rate']:.4f} run_at={run_at}")
 
-    if args.dry_run:
-        print(f"[dry-run] 不落库不发送。结合总注={len(merged)}。")
-        conn.close()
-        return
+        if args.dry_run:
+            print(f"[dry-run] N={N} 不落库不发送。结合总注={len(merged)}。")
+            continue
 
-    # 落库前整批清空该期旧行(防历史残留)
-    db_clear_mode(conn, period, "top5")
-    db_clear_mode(conn, period, "wheel")
-    # 落库 A: Top5 锚(5 注, 仍标记 top5 模式便于复盘)
-    for g in top5_anchor:
-        db_upsert(conn, period, now, "top5", g["group"], ",".join(f"{r:02d}" for r in g["reds"]),
-                  g["blue"], g["popularity"], seed)
-    # 落库 B: Wheel 补足部分(标记 wheel 模式)
-    cov = wheel["coverage"]
-    for i, t in enumerate(wheel_fill, 1):
-        db_upsert(conn, period, now, "wheel", i, ",".join(f"{r:02d}" for r in t["reds"]),
-                  t["blue"], t["popularity"], seed,
-                  pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
-                  n_notes=cov["n_notes"])
+        # 落库前清空该期+该尺寸旧行(防历史残留 + 尺寸间互不影响)
+        db_clear_mode(conn, period, "top5", wheel_notes=N)
+        db_clear_mode(conn, period, "wheel", wheel_notes=N)
+        # 落库 A: Top5 锚(5 注, 标记 top5 + wheel_notes=N 便于按尺寸复盘)
+        for g in top5_anchor:
+            db_upsert(conn, period, now, "top5", g["group"],
+                      ",".join(f"{r:02d}" for r in g["reds"]),
+                      g["blue"], g["popularity"], seed, wheel_notes=N)
+        # 落库 B: Wheel 补足部分(标记 wheel + wheel_notes=N)
+        for i, t in enumerate(wheel_fill, 1):
+            db_upsert(conn, period, now, "wheel", i,
+                      ",".join(f"{r:02d}" for r in t["reds"]),
+                      t["blue"], t["popularity"], seed,
+                      pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
+                      n_notes=cov["n_notes"], wheel_notes=N)
 
-    # 打印 + 邮件
-    title = (f"双色球{period}期推荐: Top5+Wheel 结合{len(merged)}注"
-             f"(通过率{cov['pass_rate']*100:.1f}%)")
-    print(f"[db] period={period} 结合总注={len(merged)} "
-          f"(top5锚{len(top5_anchor)}+wheel补{len(wheel_fill)}) "
-          f"pass_rate={cov['pass_rate']:.4f} run_at={run_at}")
-    if not args.no_email:
-        send_email(title, render_html(period, seed, run_at, top5_anchor,
-                                      {"coverage": cov, "tickets": wheel_fill},
-                                      dropped=0, wheel_notes=args.wheel_notes,
-                                      merged_total=len(merged)))
-    else:
-        print(f"[no-email] 跳过发信。标题={title}")
-    # 落库确认
+        # 邮件
+        title = (f"双色球{period}期推荐[W{N}]: Top5+Wheel 结合{N}注"
+                 f"(通过率{cov['pass_rate']*100:.1f}%)")
+        print(f"[db] period={period} N={N} 结合总注={len(merged)} "
+              f"(top5锚{len(top5_anchor)}+wheel补{len(wheel_fill)}) "
+              f"pass_rate={cov['pass_rate']:.4f}")
+        if not args.no_email:
+            send_email(title, render_html(period, seed, run_at, top5_anchor,
+                                          {"coverage": cov, "tickets": wheel_fill},
+                                          dropped=0, wheel_notes=N,
+                                          merged_total=len(merged), anchor_mode=args.anchor_mode))
+        else:
+            print(f"[no-email] N={N} 跳过发信。标题={title}")
+
+    # 落库确认(全尺寸)
     with conn.cursor() as cur:
-        cur.execute("SELECT mode, COUNT(*) FROM ssq.predicted_picks WHERE period=%s GROUP BY mode ORDER BY 1", (period,))
+        cur.execute("SELECT mode, wheel_notes, COUNT(*) FROM ssq.predicted_picks "
+                    "WHERE period=%s GROUP BY mode, wheel_notes ORDER BY 1, 2", (period,))
         print("[db] verify:", cur.fetchall())
     conn.close()
 
