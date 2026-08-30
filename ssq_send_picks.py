@@ -69,28 +69,36 @@ def gen_top5(red_mean, blue_mean, rng):
     return sorted(out, key=lambda x: x["popularity"], reverse=True)
 
 
-def gen_wheel(red_mean, blue_mean, seed, max_notes=20):
-    """wheel 注: Top-18 概率池 → greedy_cover → 每注配蓝球.
-    max_notes 可配(默认20; walk-forward 验证 W20 保留 78% ≥4红事件仅花 67% 注数, 甜点)."""
+def gen_wheel(red_mean, blue_mean, seed, total_notes=20, extra=5):
+    """生成 Wheel 候选: Top-18 概率池 → greedy_cover。
+    total_notes = 对外结合后总注数(10/20/30); 内部多生成 extra 注作去重余量。
+    最终由 merge_top5_wheel 把 Top5 的 5 注作锚嵌入, 结合总注 = total_notes(非 5+total 叠加)。"""
     res = sn.build_wheel_tickets(red_mean, blue_mean, pool_size=18,
-                                 max_notes=max_notes, restarts=3, seed=seed,
+                                 max_notes=total_notes + extra, restarts=3, seed=seed,
                                  popularity_fn=None, lambda_=0.3)
     return res
 
 
-def dedup_combined(top5, wheel_tickets):
-    """去重: top5 优先以 'top5' 模式保留; wheel 中与 top5 撞票(同红集+蓝)者丢弃, 避免重复花钱。
-    返回 (wheel_unique, dropped)。"""
+def merge_top5_wheel(top5, wheel_tickets, total):
+    """结合(非叠加): Top5 的 5 注作为锚必含, 从 Wheel 候选按流行度挑 total-5 注去重补足,
+    使最终总注 = total(10/20/30)。预算固定为 N, 而非 5+N 的简单叠加——这才是'结合'的意义:
+    用 Top5 的冷门加权智慧播种 Wheel 的覆盖, 而非两份独立票相加。
+
+    返回 merged 列表(长度=total; 前 len(top5) 为 Top5 锚, 其后为 Wheel 补足)。
+    若 Wheel 去重后可用注不足 total-5(罕见, extra 余量足够时不会发生), 则取全部可用注。"""
+    if total < len(top5):
+        raise ValueError(f"total_notes({total}) 必须 ≥ Top5 注数({len(top5)})")
+    out = list(top5)
     seen = {(tuple(sorted(g["reds"])), g["blue"]) for g in top5}
-    wheel_unique, dropped = [], 0
-    for t in wheel_tickets:
+    for t in sorted(wheel_tickets, key=lambda x: x["popularity"], reverse=True):
+        if len(out) >= total:
+            break
         k = (tuple(sorted(t["reds"])), t["blue"])
         if k in seen:
-            dropped += 1
-        else:
-            seen.add(k)
-            wheel_unique.append(t)
-    return wheel_unique, dropped
+            continue
+        seen.add(k)
+        out.append(t)
+    return out
 
 
 def db_clear_mode(conn, period, mode):
@@ -143,37 +151,37 @@ def send_email(subject, html_body):
         print(f"[email] 异常: {e}")
 
 
-def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20):
-    """组装邮件 HTML: 5 组(优先) + wheel 去重后并集 + 覆盖率报告."""
+def render_html(period, seed, run_at, top5, wheel, dropped=0, wheel_notes=20, merged_total=None):
+    """组装邮件 HTML: Top5 锚(优先) + Wheel 补足(去重后并集) + 覆盖率报告."""
     res = wheel  # build_wheel_tickets 返回 dict
     rows5 = "".join(
         f"<tr><td>{g['group']}</td><td><b>{' '.join(f'{r:02d}' for r in g['reds'])}</b></td>"
         f"<td><b>{g['blue']:02d}</b></td><td>{g['popularity']:.3f}</td></tr>"
         for g in top5)
     cov = res["coverage"]
-    wt = res["tickets"]  # 已是去重后的 wheel 部分
+    wt = res["tickets"]  # 已是去重后的 wheel 补足部分
     rows_w = "".join(
         f"<tr><td>{i+1}</td><td>{' '.join(f'{r:02d}' for r in t['reds'])}</td>"
         f"<td>{t['blue']:02d}</td><td>{t['popularity']:.3f}</td></tr>"
         for i, t in enumerate(sorted(wt, key=lambda x: x["popularity"], reverse=True)))
-    total = len(top5) + len(wt)
+    total = merged_total if merged_total is not None else (len(top5) + len(wt))
     return f"""<html><body style="font-family:sans-serif">
 <h2>双色球 {period} 期推荐（下一期开奖）</h2>
 <p>数据源: 模型集成概率 run_at={run_at}；生成 seed={seed}（可复现）</p>
 
-<h3>A. 常规 5 组（红球冷门加权 + 蓝球受控随机）</h3>
+<h3>A. Top5 锚（红球冷门加权 + 蓝球受控随机，作为结合必含项）</h3>
 <table border="1" cellpadding="4" cellspacing="0">
 <tr><th>组</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows5}
 </table>
 <p>注: 流行度越低越冷门(避开连号/生日号/全奇偶等热门组合)；仅供娱乐参考。</p>
 
-<h3>B. 旋转矩阵 wheel（池18 / {wheel_notes}注，去重后与 A 并集）</h3>
+<h3>B. 旋转矩阵 Wheel 补足（池18 / 候选 {wheel_notes}注，与 A 去重并集至总预算）</h3>
 <table border="1" cellpadding="4" cellspacing="0">
 <tr><th>#</th><th>红球</th><th>蓝球</th><th>流行度</th></tr>{rows_w}
 </table>
 <p>覆盖率: 4-子集 {cov['four_subset_coverage']*100:.2f}% ｜ 6-子集通过率 {cov['pass_rate']*100:.2f}% ｜ 注数 {cov['n_notes']} ｜ 池大小 {cov.get('pool_size','-')} ｜ 收敛 {cov['converged']}</p>
 <p>说明: 若 6 个奖号全部落在池内(概率 C(18,6)/C(33,6)≈17.7%)，{wheel_notes} 注中至少一注中 4 红以上的概率为 {cov['pass_rate']*100:.2f}%。</p>
-<p><b>合并总注数 = {total}（A 5 + B {len(wt)}；与 Top5 撞票已去重 {dropped} 张，不重复花钱）。</b></p>
+<p><b>结合总注数 = {total}（A 锚 5 + B 补足 {len(wt)}；Top5 已嵌入而非叠加，预算固定为 {wheel_notes}）。</b></p>
 <p>诚实声明: 四法同吃 FLAT 概率, 每注命中率均=随机下限(≈1.09红/注); 覆盖差异只在规模/成本, 不在精度。仅供娱乐参考。</p>
 </body></html>"""
 
@@ -238,46 +246,50 @@ def main():
     red_mean, blue_mean, run_at, models = load_probs(conn)
     rng = np.random.default_rng(seed)
     top5 = gen_top5(red_mean, blue_mean, rng)
-    wheel = gen_wheel(red_mean, blue_mean, seed, max_notes=args.wheel_notes)
+    # 结合预算 = 总注数(10/20/30); 内部多生成 extra 注作锚嵌入余量
+    wheel = gen_wheel(red_mean, blue_mean, seed, total_notes=args.wheel_notes, extra=5)
 
-    # ①+②: Top5 优先保留, wheel 与之撞票去重
-    wheel_u, dropped = dedup_combined(top5, wheel["tickets"])
-    wheel = {**wheel, "tickets": wheel_u}
+    # ①+②: Top5 的 5 注作锚必含, 从 Wheel 候选补足至总注=args.wheel_notes(结合非叠加)
+    merged = merge_top5_wheel(top5, wheel["tickets"], total=args.wheel_notes)
+    top5_anchor = merged[:len(top5)]
+    wheel_fill = merged[len(top5):]  # Wheel 补足部分(已去重, 不含 Top5 锚)
 
     now = datetime.now()
-    total_notes = len(top5) + len(wheel_u)
-    print(f"[combine] period={period} top5={len(top5)} wheel={len(wheel_u)} "
-          f"(原{args.wheel_notes}注去重丢{dropped}) 合并={total_notes} "
-          f"pass_rate={wheel['coverage']['pass_rate']:.4f} run_at={run_at}")
+    print(f"[combine] period={period} 结合总注={len(merged)} "
+          f"(Top5锚{len(top5_anchor)} + Wheel补{len(wheel_fill)}) "
+          f"wheel候选池={len(wheel['tickets'])} pass_rate={wheel['coverage']['pass_rate']:.4f} run_at={run_at}")
 
     if args.dry_run:
-        print(f"[dry-run] 不落库不发送。合并总注={total_notes}, 去重{dropped}张。")
+        print(f"[dry-run] 不落库不发送。结合总注={len(merged)}。")
         conn.close()
         return
 
-    # 落库前整批清空该期旧行(防历史 wheel30 残留 group_idx>新注数)
+    # 落库前整批清空该期旧行(防历史残留)
     db_clear_mode(conn, period, "top5")
     db_clear_mode(conn, period, "wheel")
-    # 落库 A: 5 组
-    for g in top5:
+    # 落库 A: Top5 锚(5 注, 仍标记 top5 模式便于复盘)
+    for g in top5_anchor:
         db_upsert(conn, period, now, "top5", g["group"], ",".join(f"{r:02d}" for r in g["reds"]),
                   g["blue"], g["popularity"], seed)
-    # 落库 B: wheel 去重后注单(模式标记 wheel, 但已不含与 top5 撞票)
+    # 落库 B: Wheel 补足部分(标记 wheel 模式)
     cov = wheel["coverage"]
-    for i, t in enumerate(wheel_u, 1):
+    for i, t in enumerate(wheel_fill, 1):
         db_upsert(conn, period, now, "wheel", i, ",".join(f"{r:02d}" for r in t["reds"]),
                   t["blue"], t["popularity"], seed,
                   pool_size=cov.get("pool_size", 18), pass_rate=cov["pass_rate"],
                   n_notes=cov["n_notes"])
 
     # 打印 + 邮件
-    title = (f"双色球{period}期推荐: Top5+Wheel{args.wheel_notes}去重"
-             f"{total_notes}注(通过率{cov['pass_rate']*100:.1f}%)")
-    print(f"[db] period={period} top5={len(top5)} wheel={len(wheel_u)} "
+    title = (f"双色球{period}期推荐: Top5+Wheel 结合{len(merged)}注"
+             f"(通过率{cov['pass_rate']*100:.1f}%)")
+    print(f"[db] period={period} 结合总注={len(merged)} "
+          f"(top5锚{len(top5_anchor)}+wheel补{len(wheel_fill)}) "
           f"pass_rate={cov['pass_rate']:.4f} run_at={run_at}")
     if not args.no_email:
-        send_email(title, render_html(period, seed, run_at, top5, wheel,
-                                      dropped=dropped, wheel_notes=args.wheel_notes))
+        send_email(title, render_html(period, seed, run_at, top5_anchor,
+                                      {"coverage": cov, "tickets": wheel_fill},
+                                      dropped=0, wheel_notes=args.wheel_notes,
+                                      merged_total=len(merged)))
     else:
         print(f"[no-email] 跳过发信。标题={title}")
     # 落库确认
