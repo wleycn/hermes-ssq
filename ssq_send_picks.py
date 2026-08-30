@@ -29,6 +29,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 import select_numbers as sn
 from ml.popularity import combo_popularity, sample_with_popularity
+from ml.pareto_select import gen_top5_pareto
 
 DEFAULT_PERIOD = "2026094"
 DEFAULT_SEED = 2026094
@@ -223,6 +224,11 @@ def main():
                     help="关闭自动算期, 必须显式 --period")
     ap.add_argument("--wheel-notes", type=int, default=20,
                     help="wheel 注数(默认20; 10/20/30 任配, walk-forward 验 20 为甜点)")
+    ap.add_argument("--anchor-mode", choices=["popularity", "pareto"], default="popularity",
+                    help="Top5 锚生成策略: popularity=原冷门加权采样(lambda=0.3); "
+                         "pareto=轻量NSGA-II思路(非支配排序取代表性锚注, 显式多目标取舍)")
+    ap.add_argument("--pareto-pool", type=int, default=300,
+                    help="pareto 模式下候选注池大小(默认300)")
     ap.add_argument("--no-email", action="store_true",
                     help="不发送邮件(仅落库+打印, 用于测试/验证)")
     ap.add_argument("--dry-run", action="store_true",
@@ -245,7 +251,20 @@ def main():
         conn.commit()
     red_mean, blue_mean, run_at, models = load_probs(conn)
     rng = np.random.default_rng(seed)
-    top5 = gen_top5(red_mean, blue_mean, rng)
+    if args.anchor_mode == "pareto":
+        # 轻量 NSGA-II 思路: 候选池 -> 非支配排序 -> 代表性锚注
+        pareto_raw = gen_top5_pareto(red_mean, blue_mean, rng,
+                                     pool_size=args.pareto_pool, top5_count=5)
+        # 转成与原 gen_top5 同 schema (额外带 score 供复盘)
+        top5 = [{"group": i + 1,
+                 "reds": t["reds"], "blue": t["blue"],
+                 "popularity": float(combo_popularity(t["reds"])),
+                 "score": t["score"]}
+                for i, t in enumerate(pareto_raw)]
+        print(f"[anchor] mode=pareto pool={args.pareto_pool} "
+              f"前沿代表点={len(top5)} (多维目标已显式取舍)")
+    else:
+        top5 = gen_top5(red_mean, blue_mean, rng)
     # 结合预算 = 总注数(10/20/30); 内部多生成 extra 注作锚嵌入余量
     wheel = gen_wheel(red_mean, blue_mean, seed, total_notes=args.wheel_notes, extra=5)
 
