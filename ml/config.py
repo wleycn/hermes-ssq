@@ -232,6 +232,22 @@ def get_model_config(model_type: str) -> dict:
     return config_map.get(model_type, {})
 
 
+# ================= 变化点自适应 (CP-ADAPT) 配置 =================
+# 信仰模式: 不预设 i.i.d., 只看变点检测器在真实数据上的结果。
+# 本开关为纯运行时闸门: False(默认) 时, 所有插入点走 else 原分支, 框架零变化、零新产物。
+# 仅当显式 --regime-window auto|N 时(或本值置 True)才激活检测与 regime 截断/衰减。
+CP_ADAPT = {
+    "enabled": False,                 # Y/N 总闸门: False=完全 inert; True=允许运行期激活
+    "min_window": 50,                 # 单侧最少期数, 低于此不判变点(避免小样本伪信号)
+    "p_threshold": 0.01,              # 双样本检验显著性阈值(越严越抗噪声)
+    "lookback_max": None,            # 检测回溯窗口: None=用全史(不丢数据); 整数=仅看最近N期
+                                     # 注: 样本仅~3500期, 默认全史才具代表性; 600期会丢弃83%样本(已实测不合理)
+    # ON 时的产物隔离(确保 N 时绝不读写这些路径/表):
+    "regime_model_subdir": "regime",  # saved_models/regime_<model> 独立子目录
+    "side_table": "model_predictions_cpadapt",  # PG 侧表, 不碰 model_predictions
+    "decay_halflife": 150,            # regime 指数衰减半衰期(期), 用于 --regime-window N
+}
+
 # ================= 旋转矩阵覆盖(Wheel)配置 =================
 WHEEL_CONFIG = {
     "k": 6,            # 每注红球数
