@@ -168,7 +168,7 @@ def draw_history_drift(conn: psycopg.Connection) -> dict:
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM ssq.draw_history;")
         info["pg_rows"] = cur.fetchone()[0]
-        cur.execute("SELECT dNum FROM ssq.draw_history ORDER BY dNum DESC LIMIT 1;")
+        cur.execute("SELECT dNum FROM ssq.draw_history WHERE dNum ~ '^\\d{7}$' ORDER BY (dNum::bigint) DESC LIMIT 1;")
         row = cur.fetchone()
         if row is not None:
             info["last_pg_issue"] = row[0]

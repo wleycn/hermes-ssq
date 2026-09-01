@@ -359,11 +359,20 @@ def main() -> int:
         print(f"[result] 期 {latest_draw['dNum']} 已是最新（同步发信）: {line}")
 
     subject = f"🎯 双色球第{latest_draw['dNum']}期开奖结果"
-    body = (f"双色球自动检查更新<br>时间: {datetime.now():%Y-%m-%d %H:%M:%S}<br><br>"
-            f"最新期号: 第{latest_draw['dNum']}期 ({latest_draw['dDate']})<br>"
-            f"红球: <b>{' '.join(f'{x:02d}' for x in latest_draw['reds'])}</b><br>"
-            f"蓝球: <b>{latest_draw['blue']:02d}</b><br><br>"
-            f"已写入: {store.CSV_PATH} + ssq.draw_history<br>(数据以官方开奖公告为准)")
+    red_str = " ".join(f"{x:02d}" for x in latest_draw["reds"])
+    blue_str = f"{latest_draw['blue']:02d}"
+    body = (
+        "<!doctype html><html><body>"
+        "<p style='font-family:Arial,Helvetica,sans-serif;font-size:15px;'>"
+        "<b>双色球自动检查更新</b><br>"
+        f"时间: {datetime.now():%Y-%m-%d %H:%M:%S}<br><br>"
+        f"最新期号: 第{latest_draw['dNum']}期 ({latest_draw['dDate']})<br>"
+        f"红球: <b style='color:#c41d1d'>{red_str}</b><br>"
+        f"蓝球: <b style='color:#1a5bbd'>{blue_str}</b><br><br>"
+        f"已写入: {store.CSV_PATH} + ssq.draw_history<br>"
+        "(数据以官方开奖公告为准)"
+        "</p>"
+    )
     # 追加"与推荐号码核对"块(读 PG predicted_picks, 只读; 失败不影响开奖入库/发信)
     try:
         import reconcile_picks as rc

@@ -87,12 +87,14 @@ def upsert_draw_stats(conn: Any, rec: dict) -> None:
 
 
 def get_latest_draw(conn: Any) -> Optional[dict]:
-    """读最新一期（ORDER BY dnum DESC LIMIT 1）。无数据返回 None。"""
+    """读最新一期（按期号数值排序）。无数据返回 None。"""
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT dnum, ynum, mnum, ddate,
+            r"""SELECT dnum, ynum, mnum, ddate,
                       red1, red2, red3, red4, red5, red6, blue1
-               FROM ssq.draw_history ORDER BY dnum DESC LIMIT 1""")
+               FROM ssq.draw_history
+               WHERE dnum ~ '^\d{7}$'
+               ORDER BY (dnum::bigint) DESC LIMIT 1""")
         row = cur.fetchone()
     if not row:
         return None
