@@ -182,6 +182,20 @@ def main():
                     help="关闭 James-Stein 收缩(默认开启, 概率诚实化; 仅调试用)")
     ap.add_argument("--no-popularity", action="store_true",
                     help="关闭流行度计算(默认开启; 仅调试用)")
+    ap.add_argument("--pool-size-tol", type=int, default=2,
+                    help="池层大中小容差(每档相对6, 默认±2); 0-6")
+    ap.add_argument("--pool-oe-tol", type=int, default=3,
+                    help="池层奇偶容差(奇数相对9, 默认±3); 0-9")
+    ap.add_argument("--ticket-size-tol", type=int, default=1,
+                    help="注层大中小容差(每档相对2, 默认±1); None=不启用")
+    ap.add_argument("--ticket-oe-tol", type=int, default=2,
+                    help="注层奇偶容差(奇数相对3, 默认±2); None=不启用")
+    ap.add_argument("--max-overlap", type=int, default=6, choices=range(0, 7), metavar="0..6",
+                    help="注间最大允许重号球数(默认6=不限制, 建议2~3); 越大越松, 覆盖率越高")
+    ap.add_argument("--pool-batches", type=int, default=1,
+                    help="wheel生成时拆为 N 个独立池(降低重号); 默认1, 建议W10=2, W20=3")
+    ap.add_argument("--diversify", action="store_true",
+                    help="启用 greedy_cover 后 diversify 阶段(默认关闭)")
     args = ap.parse_args()
 
     if args.period:
@@ -210,6 +224,13 @@ def main():
         conn, seed, wheels=sizes,
         no_shrink=getattr(args, "no_shrink", False),
         no_popularity=getattr(args, "no_popularity", False),
+        pool_size_tol=getattr(args, "pool_size_tol", 2),
+        pool_oe_tol=getattr(args, "pool_oe_tol", 3),
+        ticket_size_tol=getattr(args, "ticket_size_tol", 1),
+        ticket_oe_tol=getattr(args, "ticket_oe_tol", 2),
+        max_overlap=getattr(args, "max_overlap", 6),
+        pool_batches=getattr(args, "pool_batches", 1),
+        diversify=getattr(args, "diversify", False),
     )
 
     now = datetime.now()

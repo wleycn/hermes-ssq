@@ -35,6 +35,57 @@ SAMPLING_N = 20000
 SAMPLING_ERROR = 0.0035  # ±0.35%: sqrt(0.25/20000) ≈ 0.00354
 _MAX_NUM = 33            # 双色球红球域 1..33
 
+# 注层约束常量(与 select_numbers 池层约束配套)
+_PRIMES = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
+
+
+def _size_bucket(n: int) -> int:
+    """1-11 -> 0(小), 12-22 -> 1(中), 23-33 -> 2(大)。"""
+    if n <= 11:
+        return 0
+    if n <= 22:
+        return 1
+    return 2
+
+
+def ticket_hard_ok(combo: Sequence[int], size_tol: int = 1, oe_tol: int = 2) -> bool:
+    """注层硬约束: 大中小 2-2-2 ±size_tol, 奇偶 3-3 ±oe_tol。
+
+    组合必须同时满足:
+      - 每档(小/中/大)个数在 [2-size_tol, 2+size_tol]
+      - 奇数个数在 [3-oe_tol, 3+oe_tol]
+
+    Args:
+        combo: 6 个红球号码(1..33)。
+        size_tol: 每档相对 2 个的容差(默认 ±1 -> 每档 1~3)。
+        oe_tol: 奇数相对 3 个的容差(默认 ±2 -> 奇数 1~5)。
+
+    Returns:
+        bool: 是否同时满足大中小与奇偶硬约束。
+    """
+    cnt = [0, 0, 0]
+    odd = 0
+    for x in combo:
+        cnt[_size_bucket(x)] += 1
+        odd += x & 1
+    if not all(2 - size_tol <= v <= 2 + size_tol for v in cnt):
+        return False
+    return 3 - oe_tol <= odd <= 3 + oe_tol
+
+
+def ticket_soft_score(combo: Sequence[int]) -> int:
+    """注层软偏好(不强求): 质数 2~4 个 +1, 总和 70~140 +1。
+
+    Args:
+        combo: 6 个红球号码(1..33)。
+
+    Returns:
+        int: 软偏好得分(0..2), 越高越接近历史常见形态。
+    """
+    n_prime = sum(1 for x in combo if x in _PRIMES)
+    total = sum(combo)
+    return int(2 <= n_prime <= 4) + int(70 <= total <= 140)
+
 
 @dataclass(frozen=True)
 class CoverResult:
@@ -71,6 +122,9 @@ def greedy_cover(
     max_notes: int = 30,
     restarts: int = 3,
     seed: int = 0,
+    max_overlap: int = 6,
+    ticket_size_tol: Optional[int] = None,
+    ticket_oe_tol: Optional[int] = None,
 ) -> CoverResult:
     """加权贪心集合覆盖: 生成至多 max_notes 注, 最大化 6-子集通过率。
 
@@ -81,6 +135,9 @@ def greedy_cover(
         max_notes: 最大注数(≥ k)。
         restarts: 贪心重启次数(≥ 1), 每次不同 seed 打乱候选序, 按 pass_rate 取最优。
         seed: 随机种子, 全程固定保证可复现。
+        max_overlap: 注间最大允许重号球数(0..6); 6=不限制。
+        ticket_size_tol: 注层大中小硬约束容差(每档相对 2 个), None=不启用。
+        ticket_oe_tol: 注层奇偶硬约束容差(奇数相对 3 个), None=不启用。
 
     Returns:
         CoverResult。
@@ -109,7 +166,19 @@ def greedy_cover(
     # ---- 1. 预计算: 6-子集 / 4-子集 位掩码与反向索引 ----
     k_choose_t = math.comb(k, t)  # 每 6-子集含 C(6,4)=15 个 4-子集
     # 枚举顺序固定(itertools.combinations 字典序), 保证确定性。
-    six_subsets = list(itertools.combinations(pool, k))          # 号码元组(C(N,6) 个)
+    all_six = list(itertools.combinations(pool, k))          # 全部 C(N,6) 号码元组
+    # 注层硬约束过滤(启用时): 只保留 大中小±size_tol & 奇偶±oe_tol 的候选
+    hard_active = ticket_size_tol is not None or ticket_oe_tol is not None
+    if hard_active:
+        six_subsets = [c for c in all_six
+                       if ticket_hard_ok(c,
+                                         ticket_size_tol if ticket_size_tol is not None else 6,
+                                         ticket_oe_tol if ticket_oe_tol is not None else 6)]
+        if len(six_subsets) < max_notes:
+            # 过滤后候选不足: 自动放宽到无约束(保证可生成 max_notes 注)
+            six_subsets = all_six
+    else:
+        six_subsets = all_six
     q_masks = [_mask_of(c) for c in itertools.combinations(pool, t)]  # 全部 4-子集掩码
     q_index = {m: i for i, m in enumerate(q_masks)}
     num_q = len(q_masks)
@@ -136,6 +205,11 @@ def greedy_cover(
         weight = [len(rev[qi]) for qi in range(num_q)]  # 含 q 的未激活 6-子集数
         order = cand_order_base[:]
         random.Random(restart_seed).shuffle(order)      # seed 打乱候选序, 确定性
+        # 软偏好 tie-break: score 严格相同时, 质合/总和更好的候选排前
+        # (只重排不删候选, 不改变贪心收敛性, 仅影响并列时的取舍)
+        if hard_active:
+            order.sort(key=lambda ci: ticket_soft_score(six_subsets[ci]),
+                       reverse=True)
         chosen: List[int] = []
         converged = False
         # 15 个 4-子集已全部覆盖的候选(score 恒 0, 扫描可跳过)
@@ -207,6 +281,90 @@ def greedy_cover(
         converged=converged,
         max_notes=max_notes,
     )
+
+
+def avg_pair_overlap(tickets: List[List[int]]) -> float:
+    """avg pairwise overlap per note pair
+
+    Args:
+        tickets: 注单列表, 每注为红球号码列表。
+
+    Returns:
+        float: 所有注对平均重号数; 注数<2 时返回 0.0。
+    """
+    n = len(tickets)
+    if n < 2: return 0.0
+    total = sum(len(set(tickets[i]) & set(tickets[j])) for i in range(n) for j in range(i+1, n))
+    return total / (n*(n-1)/2)
+
+def _diversify(pool: Sequence[int], tickets: List[dict], max_notes: int,
+               target_overlap: float = 1.80, max_overlap: int = 6, seed: int = 0) -> List[dict]:
+    """local diversification after greedy_cover to approach target avg overlap
+
+    note: 18-ball random expectation ~2.00; historical 1.09 is 33-ball property
+    """
+    if len(tickets) <= 1: return tickets
+    rng = random.Random(seed + 77777)
+    chosen_reds = [t["reds"] for t in tickets]
+    chosen_sets = [set(s) for s in chosen_reds]
+    exist = set(tuple(s) for s in chosen_reds)
+    candidates = [list(c) for c in itertools.combinations(pool, 6) if tuple(c) not in exist]
+    rng.shuffle(candidates)
+
+    def current_avg() -> float:
+        """当前已选注单的平均两两重号数。
+
+        Returns:
+            float: 平均重号数; 注数<2 时返回 0.0。
+        """
+        n = len(chosen_reds)
+        if n < 2: return 0.0
+        total = 0
+        for i in range(n):
+            for j in range(i+1, n):
+                total += len(chosen_sets[i] & chosen_sets[j])
+        return total / (n*(n-1)/2)
+
+    improved = True
+    while improved and candidates:
+        improved = False
+        for ci, cand in enumerate(list(candidates)):
+            if len(chosen_reds) < max_notes:
+                cand_set = set(cand)
+                if any(len(cand_set & cs) > max_overlap for cs in chosen_sets):
+                    continue
+                n = len(chosen_reds)
+                added_ov = sum(len(cand_set & cs) for cs in chosen_sets)
+                new_avg = (sum(len(chosen_sets[i] & chosen_sets[j]) for i in range(n) for j in range(i+1, n)) + added_ov) / (n*(n+1)/2)
+                if new_avg < current_avg():
+                    chosen_reds.append(cand)
+                    chosen_sets.append(cand_set)
+                    candidates.pop(ci)
+                    improved = True
+                    break
+            else:
+                # replacement mode
+                cand_set = set(cand)
+                n = len(chosen_reds)
+                best_ri = -1
+                best_new_avg = current_avg()
+                for ri in range(n):
+                    if len(cand_set & chosen_sets[ri]) > max_overlap:
+                        continue
+                    remove_ov = sum(len(chosen_sets[ri] & chosen_sets[j]) for j in range(n) if j != ri)
+                    add_ov = sum(len(cand_set & chosen_sets[j]) for j in range(n) if j != ri)
+                    total_ov = sum(len(chosen_sets[i] & chosen_sets[j]) for i in range(n) for j in range(i+1, n)) - remove_ov + add_ov
+                    new_avg = total_ov / (n*(n-1)/2)
+                    if new_avg < best_new_avg:
+                        best_new_avg = new_avg
+                        best_ri = ri
+                if best_ri >= 0:
+                    chosen_reds[best_ri] = cand
+                    chosen_sets[best_ri] = cand_set
+                    candidates.pop(ci)
+                    improved = True
+                    break
+    return [{"reds": r} for r in chosen_reds]
 
 
 def _sample_pass_rate(pool, covered: List[bool], q_masks: List[int], rng) -> float:

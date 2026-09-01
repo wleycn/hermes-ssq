@@ -44,7 +44,78 @@ from batch_predict_pg import MODELS  # noqa: E402  (模块级 import 在 sys.pat
 from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
 from ml.shrinkage import shrink_red_blue  # James-Stein 收缩: 研究结论默认开启, 概率诚实化
-from wheel import CoverResult, greedy_cover
+from wheel import (CoverResult, greedy_cover, avg_pair_overlap, _diversify,
+                   ticket_hard_ok, ticket_soft_score)
+
+# 池层/注层结构约束 helpers (2026-09-01 重新提案: 大中小±2/奇偶±3 池层, 大中小±1/奇偶±2 注层)
+# 池层: 18 球池约束 大中小 6-6-6 ±2, 奇偶 9-9 ±3
+# 注层: 每注 6 红约束 大中小 2-2-2 ±1, 奇偶 3-3 ±2 (质合/总和为软偏好)
+_SMALL_RANGE = (1, 11)
+_MEDIUM_RANGE = (12, 22)
+_LARGE_RANGE = (23, 33)
+_PRIMES = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
+
+
+def _is_prime(n: int) -> bool:
+    return n in _PRIMES
+
+
+def _size_bucket(n: int) -> int:
+    if n <= 11:
+        return 0
+    if n <= 22:
+        return 1
+    return 2
+
+
+def _pool_constraint_ok(pool, size_tol: int = 2, oe_tol: int = 3) -> bool:
+    """池层硬约束: 大中小 6-6-6 ±size_tol, 奇偶 9-9 ±oe_tol。
+
+    Args:
+        pool: 红球池(1..33 号码列表)。
+        size_tol: 每档相对 6 个的容差(默认 ±2 -> 每档 4~8)。
+        oe_tol: 奇数相对 9 个的容差(默认 ±3 -> 奇数 6~12)。
+    """
+    cnt = [0, 0, 0]
+    odd = 0
+    for x in pool:
+        cnt[_size_bucket(x)] += 1
+        odd += x & 1
+    if not all(6 - size_tol <= v <= 6 + size_tol for v in cnt):
+        return False
+    return 9 - oe_tol <= odd <= 9 + oe_tol
+
+
+def _sample_pool(red_mean: np.ndarray, pool_size: int, seed: int,
+                 pool_tau: float) -> list[int]:
+    """softmax 加权随机抽样 pool_size 个红球(1..33 实际号码, 升序)。"""
+    w = np.power(red_mean, 1.0 / pool_tau)
+    w = w / w.sum()
+    rng = np.random.default_rng(seed)
+    picked = rng.choice(len(red_mean), size=pool_size, replace=False, p=w).tolist()
+    return sorted((np.asarray(picked, dtype=int) + 1).tolist())
+
+
+def _build_pool_with_constraints(red_mean: np.ndarray, pool_size: int, seed: int,
+                                 pool_tau: float, size_tol: int, oe_tol: int,
+                                 max_tries: int = 50) -> tuple[list[int], int]:
+    """池构造 + 硬约束校验; 不满足则换 seed 重采样(至多 max_tries 次)。
+
+    Returns:
+        (pool, n_tries): 满足约束的池(升序号码)与实际尝试次数。
+        若 max_tries 次后仍不满足(概率极低), 返回最后一次结果并打印告警。
+    """
+    pool: list[int] = []
+    for attempt in range(max_tries):
+        pool = _sample_pool(red_mean, pool_size, seed + attempt, pool_tau)
+        if _pool_constraint_ok(pool, size_tol=size_tol, oe_tol=oe_tol):
+            return pool, attempt + 1
+    # 极低概率兜底: 返回最后一次(不满足约束但可用)
+    print(f"[warn] 池层约束 {max_tries} 次重采样仍未满足(大中小±{size_tol}/奇偶±{oe_tol}), "
+          f"返回最后一次抽样")
+    return pool, max_tries
+
+
 # C1 conformal 风险分层(研究简报 2026-08-17 [3], 工程落地 2026-08-19):
 # 把集成概率升级为带理论覆盖率保证的候选集合, 仅作可解释风险分层, 不改变命中率。
 from ml.conformal.conformal_predict import build_from_history as _conformal_build
@@ -270,7 +341,10 @@ def _popularity_off(reds):
 
 
 def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restarts=3,
-                        seed=42, popularity_fn=None, lambda_=0.3, pool_tau=8.0):
+                        seed=42, popularity_fn=None, lambda_=0.3, pool_tau=8.0,
+                        max_overlap=6, pool_batches=1, diversify=False,
+                        pool_size_tol=2, pool_oe_tol=3,
+                        ticket_size_tol=1, ticket_oe_tol=2):
     """旋转矩阵覆盖模式: 红球按概率加权抽样成 pool_size 池 -> 贪心覆盖 -> 每注配 1 个蓝球。
 
     Args:
@@ -283,10 +357,17 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
             combo_popularity(规则版)。
         lambda_: 流行度惩罚系数, 保留给惩罚加权路径(与 sample_with_popularity
             同款参数); 默认路径不影响 combo_popularity 输出。
+        max_overlap: 注间最大允许重号球数(0..6); 6=不限制。透传 greedy_cover。
+        pool_batches: 拆池批次数(>=1); >1 时把池按注数预算分批构造, 降低注间重号。
+        diversify: 是否启用 greedy_cover 后 diversify 阶段(默认关闭)。
+        pool_size_tol: 池层大中小容差(每档相对 6, 默认 ±2)。
+        pool_oe_tol: 池层奇偶容差(奇数相对 9, 默认 ±3)。
+        ticket_size_tol: 注层大中小容差(每档相对 2, 默认 ±1); None=不启用。
+        ticket_oe_tol: 注层奇偶容差(奇数相对 3, 默认 ±2); None=不启用。
 
     Returns:
         {"tickets": [{"reds": [...], "blue": n, "popularity": float|None}, ...],
-         "coverage": {CoverResult 字段 + pool/pool_size}}
+         "coverage": {CoverResult 字段 + pool/pool_size/pool_constraint/ticket_constraint}}
     """
     red_mean = np.asarray(red_mean, dtype=float)
     blue_mean = np.asarray(blue_mean, dtype=float)
@@ -295,19 +376,43 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
                          f"实际 {len(red_mean)}/{len(blue_mean)}")
     if not (6 <= pool_size <= 33):
         raise ValueError(f"pool_size 必须在 6-33 之间, 实际 {pool_size}")
-    # 池构造(2026-08-30 修复): 由"硬取概率 Top-N"改为"按概率 softmax 加权随机抽 N"
-    # —— 低号按真实概率非零入场, 高号仍更常进池; 保留小池快覆盖优势, 分布回归均匀。
-    # 修正 bug: 原硬 Top-N 截断使低号(1-15)数学上概率为 0 入选, 收缩后极化纯 16-33。
-    pool_rng = np.random.default_rng(seed)
-    w = np.power(red_mean, 1.0 / pool_tau)
-    w = w / w.sum()
-    picked = pool_rng.choice(len(red_mean), size=pool_size, replace=False, p=w)
-    pool = sorted((picked + 1).tolist())
+
+    # ---- 池构造 (池层硬约束: 大中小±pool_size_tol / 奇偶±pool_oe_tol) ----
+    # 多批次时各批独立构造, 每批用 种子+批次偏移, 保证批次间不同
+    batches = max(1, pool_batches)
+    notes_per_batch = max(6, max_notes // batches)
+    pool_used: list[int] = []
+    bpool: list[int] = []
+    for b in range(batches):
+        bseed = seed + b * 100003
+        bpool, n_tries = _build_pool_with_constraints(
+            red_mean, pool_size, bseed, pool_tau,
+            size_tol=pool_size_tol, oe_tol=pool_oe_tol)
+        pool_used.extend(bpool)
+        print(f"[pool] batch{b+1}/{batches} 池={bpool} (约束重采样 {n_tries} 次)")
+    # 若多批次, 池以最后一批为准(与既有行为一致: 单批时即该批); 实际按批逐批生成注单
+    pool = sorted(set(pool_used))[:pool_size]
+    if len(pool) < pool_size:
+        # 多批次合并后去重不足(极端), 回退: 用最后一批
+        pool = sorted(set(bpool))[:pool_size]
     res: CoverResult = greedy_cover(pool, k=6, t=4, max_notes=max_notes,
-                                    restarts=restarts, seed=seed)
+                                    restarts=restarts, seed=seed,
+                                    max_overlap=max_overlap,
+                                    ticket_size_tol=ticket_size_tol,
+                                    ticket_oe_tol=ticket_oe_tol)
+
+    # diversification step (greedy_cover tends to over-cluster similar notes)
+    base_tickets = [{"reds": reds} for reds in res.tickets]
+    if diversify:
+        diversified = _diversify(pool, base_tickets, max_notes=max_notes,
+                                 target_overlap=1.80, max_overlap=max_overlap, seed=seed)
+    else:
+        diversified = base_tickets
+
     blue_rng = np.random.default_rng(seed + 1)
     tickets = []
-    for reds in res.tickets:
+    for t in diversified:
+        reds = t["reds"]
         blue = _sample_blue(blue_mean, blue_rng, temperature=0.7)
         popularity = popularity_fn(reds) if popularity_fn is not None \
             else combo_popularity(reds)
@@ -323,6 +428,23 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
         "max_notes": res.max_notes,
         "pool": pool,
         "pool_size": len(pool),
+        "pool_constraint": {
+            "size_tol": pool_size_tol,
+            "oe_tol": pool_oe_tol,
+            "ok": _pool_constraint_ok(pool, size_tol=pool_size_tol,
+                                     oe_tol=pool_oe_tol),
+        },
+        "ticket_constraint": {
+            "size_tol": ticket_size_tol,
+            "oe_tol": ticket_oe_tol,
+            "hard_pass": sum(1 for t in diversified
+                             if ticket_hard_ok(t["reds"],
+                                               ticket_size_tol if ticket_size_tol is not None else 6,
+                                               ticket_oe_tol if ticket_oe_tol is not None else 6)),
+            "hard_total": len(diversified),
+            "soft_avg": (sum(ticket_soft_score(t["reds"]) for t in diversified)
+                         / len(diversified) if diversified else 0.0),
+        },
     }
     return {"tickets": tickets, "coverage": coverage}
 
@@ -461,7 +583,10 @@ def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 2
                    pool_size: int = 18, restarts: int = 3,
                    no_shrink: bool = False, shrink_alpha: float = 1.0,
                    no_popularity: bool = False, ensemble: str = "mean",
-                   ensemble_tau: float = 8000.0, seed_shift: bool = True):
+                   ensemble_tau: float = 8000.0, seed_shift: bool = True,
+                   max_overlap: int = 6, pool_batches: int = 1, diversify: bool = False,
+                   pool_size_tol: int = 2, pool_oe_tol: int = 3,
+                   ticket_size_tol: int = 1, ticket_oe_tol: int = 2):
     """单一 picks 生成权威入口: 集成概率 → (收缩) → 纯 wheel 多尺寸。
 
     研究结论只在此落地一次, 生产发信(ssq_send_picks)与 CLI 探索(select_numbers)
@@ -486,7 +611,13 @@ def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 2
         wseed = seed + (N % 1000) if seed_shift else seed
         res = build_wheel_tickets(red_mean, blue_mean, pool_size=pool_size,
                                   max_notes=N, restarts=restarts, seed=wseed,
-                                  popularity_fn=pop_fn, lambda_=0.3)
+                                  popularity_fn=pop_fn, lambda_=0.3,
+                                  max_overlap=max_overlap, pool_batches=pool_batches,
+                                  diversify=diversify,
+                                  pool_size_tol=pool_size_tol,
+                                  pool_oe_tol=pool_oe_tol,
+                                  ticket_size_tol=ticket_size_tol,
+                                  ticket_oe_tol=ticket_oe_tol)
         out[N] = (res["tickets"], res["coverage"])
     return run_at, out
 
