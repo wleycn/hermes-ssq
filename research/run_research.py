@@ -30,6 +30,10 @@ from pathlib import Path
 # 否则 subprocess.Popen(["hermes", ...]) 会 FileNotFoundError。
 HERMES_BIN = shutil.which("hermes") or "/home/hermes/.local/bin/hermes"
 
+import sys
+sys.path.insert(0, "/home/hermes/workspace/.infra")
+from path_anchor import SEND_EMAIL_CLI
+
 ROOT = Path(__file__).resolve().parent
 DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 REPORTS = DC_SSQ / "research" / "reports"
@@ -121,7 +125,7 @@ def run_research() -> bool:
 
 def send_email(report_path: Path):
     """读报告, 统一走中枢 send_email.py (To=126 + Cc=163 由 .env 兜底). 凭据由中枢读取."""
-    SEND_CLI = Path.home() / "workspace/ng/skills/common/send-email/send_email.py"
+    SEND_CLI = SEND_EMAIL_CLI  # path_anchor 真源，隔离 HOME 安全
     subject = f"SSQ预测方法研究简报 - {TODAY}"
     cmd = [sys.executable, str(SEND_CLI),
            "--subject", subject, "--body-file", str(report_path)]

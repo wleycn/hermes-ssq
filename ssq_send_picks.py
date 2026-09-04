@@ -5,9 +5,9 @@
 
 流程:
 1. 读 PG ssq.model_predictions 最新 run_at 集成概率
-2. 生成旋转矩阵 Wheel 多尺寸(纯 wheel, 无 Top5 锚): 默认 W10(10注) + W20(20注), 各自独立生成
+2. 生成旋转矩阵 Wheel 多尺寸(纯 wheel, 无 Top5 锚): 默认 W10(10注) + W30(30注), 各自独立生成
 3. 落库 ssq.predicted_picks(复盘表, 幂等: 同 period+mode+wheel_notes 先删后插)
-4. 单封邮件: A 区=Wheel10, B 区=Wheel20, 零"锚/结合"过时描述
+4. 单封邮件: A 区=Wheel10, B 区=Wheel30, 零"锚/结合"过时描述
 5. smtplib 直发邮件到 wleycn@163.com(绕过 hermes send email bug)
 
 注: 模型概率来自最近一次 run(未重训), 不同期仅 seed 不同导致采样差异。
@@ -36,6 +36,7 @@ from export_picks_to_datacenter import export_period
 
 DEFAULT_PERIOD = "2026094"
 DEFAULT_SEED = 2026094
+DEFAULT_WHEELS = (10, 30)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS ssq.predicted_picks (
@@ -112,8 +113,8 @@ def send_email(subject, html_body):
 
 
 def render_html(period, seed, run_at, wheels: dict):
-    """组装单封邮件: A 区=Wheel10, B 区=Wheel20, 纯 wheel 无锚描述。
-    wheels: {10: (tickets, cov), 20: (tickets, cov)} 按尺寸键排序输出。"""
+    """组装单封邮件: A 区=Wheel10, B 区=Wheel30, 纯 wheel 无锚描述。
+    wheels: {10: (tickets, cov), 30: (tickets, cov)} 按尺寸键排序输出。"""
     def rows_html(tickets):
         return "".join(
             f"<tr><td>{i+1}</td><td>{' '.join(f'{r:02d}' for r in t['reds'])}</td>"
@@ -142,24 +143,47 @@ def render_html(period, seed, run_at, wheels: dict):
 
 
 def compute_next_period(csv_path: str = None) -> tuple[str, int, str | None]:
-    """自动算下一期期号: 读 1.csv 最新一行 dNum, 下一期 = dNum+1。
-    返回 (period_str, seed_int, latest_date_str)。"""
-    import csv
-    if csv_path is None:
-        csv_path = str(Path(__file__).resolve().parent / "ml" / "data" / "1.csv")
-    proj = Path("/home/hermes/workspace/python/SSQ/ml/data/1.csv")
-    if proj.exists():
-        csv_path = str(proj)
+    """自动算下一期期号: 优先读 PG ssq.draw_history 最新一期 dNum, 下一期 = dNum+1；
+    若 PG 不可用则回退到 1.csv。返回 (period_str, seed_int, latest_date_str)。"""
     latest_dnum = None
     latest_date = None
-    with open(csv_path, encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
-    if rows:
-        last = rows[-1]
-        latest_dnum = int(last["dNum"])
-        latest_date = last.get("dDate") or last.get("draw_date")
+
+    # 优先：PG 真源
+    try:
+        import sys
+        from pathlib import Path
+        data_dir = Path(__file__).resolve().parent / "ml" / "data"
+        if str(data_dir) not in sys.path:
+            sys.path.insert(0, str(data_dir))
+        import db_draw as db
+        conn = db.connect()
+        try:
+            row = db.get_latest_draw(conn)
+        finally:
+            conn.close()
+        if row:
+            latest_dnum = int(row["dNum"])
+            latest_date = row.get("dDate")
+    except Exception as e:
+        print(f"[warn] 读 PG 最新开奖失败, 回退 1.csv: {e}")
+
+    # 回退：1.csv
     if latest_dnum is None:
-        raise RuntimeError(f"无法从 {csv_path} 推断最新期号")
+        import csv as _csv
+        if csv_path is None:
+            csv_path = str(Path(__file__).resolve().parent / "ml" / "data" / "1.csv")
+        proj = Path("/home/hermes/workspace/python/SSQ/ml/data/1.csv")
+        if proj.exists():
+            csv_path = str(proj)
+        with open(csv_path, encoding="utf-8-sig", newline="") as f:
+            rows = list(_csv.DictReader(f))
+        if rows:
+            last = rows[-1]
+            latest_dnum = int(last["dNum"])
+            latest_date = last.get("dDate") or last.get("draw_date")
+
+    if latest_dnum is None:
+        raise RuntimeError("无法从 PG 或 1.csv 推断最新期号")
     nxt = latest_dnum + 1
     return str(nxt), nxt, latest_date
 
@@ -172,8 +196,8 @@ def main():
                     help="自动从 1.csv 算下一期期号(默认开)")
     ap.add_argument("--no-auto-next", dest="auto_next", action="store_false",
                     help="关闭自动算期, 必须显式 --period")
-    ap.add_argument("--wheels", type=str, default="10,20",
-                    help="多尺寸逗号分隔, 如 '10,20'; 单封邮件 A/B 区各对应一个尺寸")
+    ap.add_argument("--wheels", type=str, default="10,30",
+                    help="多尺寸逗号分隔, 如 '10,30'; 单封邮件 A/B 区各对应一个尺寸")
     ap.add_argument("--no-email", action="store_true",
                     help="不发送邮件(仅落库+打印, 用于测试/验证)")
     ap.add_argument("--dry-run", action="store_true",
@@ -216,7 +240,7 @@ def main():
     # 解析目标尺寸
     sizes = [int(x) for x in args.wheels.split(",") if x.strip()]
     if not sizes:
-        sizes = [10, 20]
+        sizes = [10, 30]
     print(f"[config] 纯 wheel 尺寸={sizes} (无锚/无结合)")
     # 单一权威入口: 集成概率 → (James-Stein 收缩) → 纯 wheel 多尺寸
     # 研究结论(收缩/无top5锚)只落地在 select_numbers.generate_picks, 此处不重复实现
@@ -236,6 +260,15 @@ def main():
     now = datetime.now()
     # 清理上一版残留的 top5 锚行(纯 wheel 模式已弃用锚, 旧数据留在库里会污染复盘)
     db_clear_mode(conn, period, "top5")
+    # 清理旧尺寸残留（防止上一轮 W20 等残留）
+    with conn.cursor() as cur:
+        placeholders = ",".join(["%s"] * len(sizes))
+        params = (period, "wheel", *sizes)
+        cur.execute(
+            f"DELETE FROM ssq.predicted_picks "
+            f"WHERE period=%s AND mode=%s AND wheel_notes NOT IN ({placeholders})",
+            params)
+    conn.commit()
     for N in sizes:
         tickets, cov = wheels[N]
         print(f"[wheel] N={N} 生成注={len(tickets)} pass_rate={cov['pass_rate']:.4f}")

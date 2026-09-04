@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -55,29 +56,31 @@ def _get(url: str, timeout: int = 15) -> str:
 def parse_eastmoney_latest(html: str) -> dict | None:
     """从 EastMoney 历史列表页解析最新一期。
     返回 {'dNum':int,'yNum':int,'mNum':int,'dDate':str,'reds':[..6],'blue':int}
-    EastMoney 结构：每行 <td><a ..id=2026XXX>..</a></td> 表头，红球在 pellet span。
-    日期取真实开奖日期字段（期号里的月/日不可靠）。
+    只接受“列表页的当期行”，拒绝详情页/单期页误命中。
     """
-    ids = re.findall(r'/Result/Category/ssq\?type=ssq&id=(\d+)', html)
-    if not ids:
+    row_re = re.compile(
+        r'<tr[^>]*>.*?/Result/Category/ssq\?type=ssq&id=(\d+).*?</tr>',
+        re.S
+    )
+    rows = []
+    for m in row_re.finditer(html):
+        row = m.group(0)
+        if 'pellet-sm red' in row and 'pellet-sm blue' in row and '开奖日期' in row:
+            rows.append((int(m.group(1)), row))
+    if not rows:
         return None
-    latest = max(int(x) for x in ids)
-    # 该期所在 <tr> 块
-    block = re.search(r'<tr>.*?id=%s.*?</tr>' % latest, html, re.S)
-    block_txt = block.group(0) if block else html
-    reds = re.findall(r'pellet-sm red">(\d{2})</span>', block_txt)
-    blue = re.findall(r'pellet-sm blue">(\d{2})</span>', block_txt)
+    latest_dnum, row_txt = max(rows, key=lambda x: x[0])
+    reds = re.findall(r'pellet-sm red">(\d{2})</span>', row_txt)
+    blue = re.findall(r'pellet-sm blue">(\d{2})</span>', row_txt)
     if len(reds) < 6 or not blue:
         return None
-    # 真实日期：block 内 "YYYY-MM-DD(星期X)"
-    dm = re.search(r'(\d{4}-\d{2}-\d{2})\(', block_txt)
+    dm = re.search(r'(\d{4}-\d{2}-\d{2})\(', row_txt)
     if not dm:
         return None
     dDate = dm.group(1)
     y, mo, _ = dDate.split("-")
-    s = str(latest)
     return {
-        "dNum": latest, "yNum": int(y), "mNum": int(mo),
+        "dNum": latest_dnum, "yNum": int(y), "mNum": int(mo),
         "dDate": dDate, "reds": [int(x) for x in reds[:6]], "blue": int(blue[0]),
     }
 
@@ -161,69 +164,123 @@ def _infer_date_unused():
     pass
 
 
-def fetch_latest() -> dict | None:
-    """多源轮询，返回交叉校验通过的最新一期 dict；无一致结果返回 None。
-
-    优先级/策略：
-      - 中彩网官方接口(cwl.gov.cn) 为权威主源（民政部直属，最可靠）。
-      - EastMoney 列表 + 网易单期页 作为交叉校验与兜底。
-      - 中彩网成功即采用；若另有源与其号码一致则信心最高；
-        中彩网不可达时，退回 EastMoney/网易交叉校验结果。
-    """
-    candidates: list[tuple[str, dict]] = []
-
-    # 源1：中彩网官方（主源）
+def _fetch_cwl() -> tuple[str, dict] | None:
     try:
         c = parse_cwl_latest()
         if c:
-            candidates.append(("cwl", c))
+            return ("cwl", c)
     except Exception as e:
         print(f"[warn] 中彩网失败: {e}")
+    return None
 
-    # 源2：EastMoney 列表（结构稳，但可能滞后）
+
+def _fetch_eastmoney() -> tuple[str, dict] | None:
     try:
         em = _get("https://caipiao.eastmoney.com/pub/Result/History/ssq?page=1")
         c = parse_eastmoney_latest(em)
         if c:
-            candidates.append(("eastmoney", c))
+            return ("eastmoney", c)
     except Exception as e:
         print(f"[warn] eastmoney 失败: {e}")
+    return None
 
-    # 源3：网易单期页 —— 以「候选里最大期号」为基准，探测该期及后两期
-    if candidates:
-        base = max(c["dNum"] for _, c in candidates)
-        for iss in range(base, base + 3):
-            try:
-                h = _get(f"https://sports.163.com/caipiao/lottery/ssq/{iss}")
-                c = parse_163_issue(h, iss)
-                if c:
-                    candidates.append(("163", c))
-            except Exception as e:
-                print(f"[warn] 163 期 {iss} 失败: {e}")
+
+def _fetch_163(base: int) -> tuple[str, dict] | None:
+    # 无 base 时探测更宽窗口，避免从无效期号 0 开始
+    window = range(base, base + 3) if base else range(0, 6)
+    for iss in window:
+        try:
+            h = _get(f"https://sports.163.com/caipiao/lottery/ssq/{iss}")
+            c = parse_163_issue(h, iss)
+            if c:
+                return ("163", c)
+        except Exception as e:
+            print(f"[warn] 163 期 {iss} 失败: {e}")
+    return None
+
+
+def fetch_latest() -> dict | None:
+    """多源轮询，返回交叉校验通过的最新一期 dict；无一致结果返回 None。
+
+    三源真并行（ThreadPoolExecutor）：中彩网/EastMoney/网易同时拉取；
+    中彩网为主源，其余交叉校验/兜底。"""
+    candidates: list[tuple[str, dict]] = []
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        cwl_fut = pool.submit(_fetch_cwl)
+        em_fut = pool.submit(_fetch_eastmoney)
+        n163_fut = pool.submit(_fetch_163, 0)
+
+        cwl_or_em = []
+        for res in (cwl_fut.result(), em_fut.result()):
+            if res:
+                cwl_or_em.append(res)
+
+        res163 = n163_fut.result()
+        if res163:
+            cwl_or_em.append(res163)
+
+    candidates.extend(cwl_or_em)
 
     if not candidates:
         return None
 
     # 交叉校验：统计每个 (dNum,reds,blue) 出现的次数
     from collections import Counter
+
+    def _validate(c):
+        if c is None:
+            return None
+        try:
+            ok = (
+                isinstance(c.get("dNum"), int)
+                and len(c.get("reds", [])) == 6
+                and all(1 <= x <= 33 for x in c["reds"])
+                and len(set(c["reds"])) == 6
+                and 1 <= int(c.get("blue", 0)) <= 16
+                and bool(c.get("dDate"))
+            )
+        except Exception:
+            return None
+        return c if ok else None
+
+    candidates = [(src, _validate(c)) for src, c in candidates]
+    candidates = [(src, c) for src, c in candidates if c]
+    if not candidates:
+        print("[warn] 所有源均未通过校验，放弃写入")
+        return None
+
     sig = Counter((c["dNum"], tuple(c["reds"]), c["blue"]) for _, c in candidates)
     best_sig, best_cnt = sig.most_common(1)[0]
+    best_dnum = best_sig[0]
+
+    # 强约束：若出现单调递增或日期异常，直接拒绝（防旧期页/未开奖占位）
+    if candidates:
+        max_date = max(c["dDate"] for _, c in candidates)
+        min_date = min(c["dDate"] for _, c in candidates)
+        if best_dnum < max(c["dNum"] for _, c in candidates) or (max_date and min_date and max_date != min_date):
+            # 若中彩网命中且日期、号码一致，允许跨源日期不同
+            cwl_hit = [c for src, c in candidates if src == "cwl"
+                       and (c["dNum"], tuple(c["reds"]), c["blue"]) == best_sig]
+            if not cwl_hit:
+                print(f"[warn] 期 {best_dnum} 存在跨期/跨日期异常且非中彩网权威，拒绝写入")
+                return None
 
     # 主源中彩网命中即采用
     cwl_hit = [c for src, c in candidates if src == "cwl"
                and (c["dNum"], tuple(c["reds"]), c["blue"]) == best_sig]
     if cwl_hit:
-        print(f"[ok] 中彩网权威源命中 期{best_sig[0]} (交叉源数={best_cnt})")
+        print(f"[ok] 中彩网权威源命中 期{best_dnum} (交叉源数={best_cnt})")
         return cwl_hit[0]
 
-    # 中彩网未命中：需至少两个非官方源一致才采用（防脏数据）
+    # 中彩网未命中：至少 2 源一致且通过校验才采用
     if best_cnt >= 2:
         alt = [c for _, c in candidates
                if (c["dNum"], tuple(c["reds"]), c["blue"]) == best_sig][0]
-        print(f"[ok] 非官方源交叉一致 期{best_sig[0]} (源数={best_cnt})")
+        print(f"[ok] 非官方源交叉一致 期{best_dnum} (源数={best_cnt})")
         return alt
 
-    print(f"[warn] 期 {best_sig[0]} 仅单源命中且非中彩网，跳过写入")
+    print(f"[warn] 期 {best_dnum} 仅单源命中且非中彩网，跳过写入")
     return None
 
 

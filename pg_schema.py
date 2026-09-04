@@ -98,7 +98,7 @@ def import_draw_history(csv_path, conn: psycopg.Connection) -> int:
     cols = ",".join(DRAW_COLUMNS)
     placeholders = ",".join(["%s"] * len(DRAW_COLUMNS))
     with conn.cursor() as cur:
-        cur.execute(f"DELETE FROM {SCHEMA}.draw_history;")  # 幂等重导入
+        cur.execute(f"TRUNCATE {SCHEMA}.draw_stats, {SCHEMA}.draw_history RESTART IDENTITY;")  # 幂等重导入，先清奖金再清开奖，避免外键级联失败
         cur.executemany(
             f"INSERT INTO {SCHEMA}.draw_history ({cols}) VALUES ({placeholders});",
             rows,
