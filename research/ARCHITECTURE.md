@@ -194,9 +194,16 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 - 混沌/8 模型/回测/cron: skill references/models-8-chaos-backtest-cron-2026-08-15.md
 - 误命中/伪科学负面清单: Lottery Ticket Hypothesis（剪枝理论非彩票）、Lotto Champ 类 AI 软件营销文、"100% 准确率"宣称
 
-## 8. 架构审查遗留项处理记录（2026-08-26）
+## 9. 2026-09-05 SSQ Research Cron 迁移与修复记录
 
-- 独立架构审查子代理报告: `research/REVIEW_2026-08-26.md`（H1/H2/M1/M2/M3 + L1–L8）。
-- 已闭环: **H2**(统一 `.env` DATABASE_URL, 消除 9 处 hardcode)、**H1**(draw_history 文档改"自动 upsert 写入")、**M1**(model_predictions 30 天自动清理)、**M2**(写库失败 stderr [ALERT] 不静默吞)、**M3**(清陈旧注释)、**L2**(db_draw.upsert_draw 改原子 ON CONFLICT UPSERT)、**L3**(dNum CHAR(7)→VARCHAR(8) + 幂等 ALTER)、**L4**(select_numbers 复用 batch_predict_pg.MODELS 单一真相源)、**L6**(EXPECTED_ROWS→3494)、**L7**(README 3492→3494)。
-- 判定为非缺陷、仅文档注记: **L1**(无连接池, cron 低频负载可接受, 已通过 pg_conn.connect 统一入口)、**L5**(retrain 经 scripts 壳中转, 功能正常)、**L8**(cron 98164fe6c0d6 实为 skill 包装, 措辞差异非缺陷)。
-- **L5 说明**: retrain_pipeline 当前经 `~/.hermes/scripts/ssq_send_picks.py` 壳 → 项目根真身, 归一后壳已透传, 无漂移; 不改为直调以免破坏 cron 绑定。
+- 事件：`df-ssq-algorithm-research` 当日简报记录“外部检索阻断：`web_search` / `web_extract` 报错 `no registered web search provider has that name (tavily)`，未取得任何新网页/论文/博客内容”。
+- 排查结论：不是 Tavily API key 缺失，也不是网络问题；根因为 Hermes 全局 `~/.hermes/config.yaml` 写死 `web.backend: tavily`，但当前 Hermes runtime 的 web provider registry 里 **未注册 `tavily` 插件**，导致所有 `web_search`/`web_extract` 调用在入口处失败。
+- 背景对齐：研究任务此前在系统级 cron 执行，后经讨论迁移到 Hermes 内部 cron（job_id `83814f04dbf8`，schedule `0 4 * * 6,7`，workdir `/home/hermes/workspace/python/SSQ/research`）。历史报告落盘在 `data-center/ssq/research/reports/`。
+- 修复方案（B2）：不改 Hermes 全局 web backend，改为 **SSQ 研究脚本直接调用 Tavily HTTP API**，绕过 Hermes web tools。
+- 变更文件：`research/run_research.py`
+  - 新增 `load_hermes_env()`：读取 `~/.hermes/.env` 注入当前进程环境变量，确保 `TAVILY_API_KEY` 可用。
+  - 新增 `tavily_search()` / `tavily_extract()`：直接 POST `https://api.tavily.com/search` 与 `https://api.tavily.com/extract`。
+  - 保留去重与上下文加载：本地读取 `ARCHITECTURE.md` + 近 2-3 期简报，防止重复研究。
+  - 保留邮件发送链路：统一走 `send_email.py` 中枢。
+- 验证：2026-09-05 手动执行成功，报告已生成 `/home/hermes/workspace/data-center/ssq/research/reports/2026-09-05.md`，邮件发送成功。
+- 结论：系统级 crontab 已无需保留 SSQ research 调度，当前唯一调度源为 Hermes 内部 cron `df-ssq-algorithm-research`。
