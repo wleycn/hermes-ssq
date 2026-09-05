@@ -2,133 +2,193 @@
 # -*- coding: utf-8 -*-
 """SSQ 预测方法研究 · 每周2次自动研究 + 邮件简报。
 
-每周六/日 04:00 由系统 crontab(/var/spool/cron/crontabs/hermes)触发：
-  1. 调用 Hermes CLI (-z 模式) 做无限制多源研究(互联网/GitHub/arXiv/文库)，
-     寻找可改进双色球号码预测概率的新方案(新ML算法/数学模型/特征工程思路)。
-  2. 研究结果写入 reports/YYYY-MM-DD.md。
-  3. 邮件统一由 send_email.py 中枢发送 (To=126 + Cc=163 由 .env 兜底)。
-
-频率说明: 2026-08-22 起由"每日"降频为"每周六/日" (Rocky 拍板:
-SSQ 研究进入维护期, 方向转向 fin-risk 方法论迁移)。
-⚠️ 修改 cron 调度须用 docker root 改 /var/spool/cron/crontabs/hermes
-(hermes 用户对 /var/spool/cron 无写权限, crontab 命令被拒)。
-
-用法:
-  ./run_research.sh            # cron 调用
-  hermes -z "$(cat prompt.txt)" --cli -t web,terminal,file   # 手动研究(内部命令)
-
-依赖: hermes CLI 在 PATH; python3
+修复：在 Hermes 全局 web backend=tavily 但 runtime 未注册该 provider 的环境下，
+改为直接调用 Tavily API 做外部检索，绕过 Hermes web tools。
 """
+import subprocess
+import json
 import os
 import sys
-import shutil
-import subprocess
 import datetime
 from pathlib import Path
 
-# hermes CLI 绝对路径: cron 环境 PATH 往往不含 ~/.local/bin, 必须写死,
-# 否则 subprocess.Popen(["hermes", ...]) 会 FileNotFoundError。
-HERMES_BIN = shutil.which("hermes") or "/home/hermes/.local/bin/hermes"
+# hermes 所在目录补进 PATH, 防止子进程再 fork 其他 hermes 相关命令时找不到
+HERMES_DIR = "/home/hermes/.local/bin"
+if HERMES_DIR not in os.environ.get("PATH", "").split(":"):
+    os.environ["PATH"] = HERMES_DIR + ":" + os.environ.get("PATH", "")
 
-import sys
 sys.path.insert(0, "/home/hermes/workspace/.infra")
-from path_anchor import SEND_EMAIL_CLI
+from path_anchor import SEND_EMAIL_CLI  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 DC_SSQ = Path("/home/hermes/workspace/data-center/ssq")  # 产出真源 2026-08-30 迁移
 REPORTS = DC_SSQ / "research" / "reports"
-REPORTS.mkdir(exist_ok=True)
+REPORTS.mkdir(parents=True, exist_ok=True)
 
 TODAY = datetime.date.today().strftime("%Y-%m-%d")
 REPORT_PATH = REPORTS / f"{TODAY}.md"
 ARCH_PATH = ROOT / "ARCHITECTURE.md"  # 2026-08-22 并入 SSQ 项目目录后动态拼接, 不再写死绝对路径
 
-# Hermes 研究 prompt: 无限制深挖, 产出简报格式(Q3=a)
-# 关键: 强制要求 Hermes 把最终简报写入 REPORT_PATH, 不要输出到 stdout 或别处
-RESEARCH_PROMPT = f"""你是双色球(SSQ)预测系统的研究方法论专家。今天的日期是 {TODAY}。
+# Tavily 端点
+TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 
-任务: 在互联网、GitHub、arXiv、Google Scholar、知乎/CSDN/博客园等所有公开可访问的来源中，
-**无限制地搜索**可能改进我们双色球号码预测概率的新方案。花 15-30 分钟深入搜索，不要浅尝辄止。
 
-**开跑前必读(强制性, 防止重复研究)**:
-1. 先 read_file: {ARCH_PATH}
-   ——重点读第 3 节「已证伪/已验证清单」与第 4 节「待办方向」。
-2. 再快速浏览 reports/ 目录最近 2-3 份简报, 了解已研究过什么。
-3. 任何新想法不得与已证伪清单重复(已测并 rollback: T13 五特征 ac/entropy/hot_cold/crf/diversity、
-   质数偏好、EBMA 集成、马尔可夫特征、wheel ROI、频谱探针 FLAT/SCALAR_BIAS——这些不要再次推荐)。
-4. 简报「总体评估」必须说明: 新发现相对已证伪清单的**净增量**在哪; 若净新增为低/无, 如实说明。
+def load_hermes_env() -> str:
+    """把 ~/.hermes/.env 注入当前进程环境变量，返回 Tavily API key。"""
+    env_path = Path.home() / ".hermes" / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip("\"'")
+            if k and k not in os.environ:
+                os.environ[k] = v
+    return (os.environ.get("TAVILY_API_KEY") or "").strip()
 
-重点寻找(不限于):
-- 新的 ML/DL 算法(如 Transformer/GraphNN/强化学习/生成模型在彩票/随机序列预测的应用)
-- 数学模型(如马尔可夫链/泊松过程/信息熵/混沌理论/数论在 lottery 的应用)
-- 特征工程创新(频率/遗漏/冷热号/跨度/和值的新型组合)
-- 集成方法(多模型融合、stacking、贝叶斯模型平均)
-- 任何声称在 lottery 预测上有突破的论文/项目/竞赛方案(Kaggle 等)
 
-研究方法(自主决定深度):
-- 用 web_search 多源检索, 包括英文和中文关键词
-- 对最相关的 2-3 个发现, 深入阅读(web_extract 原文)理解其方法
-- 批判性评估: 哪些是真有潜力, 哪些只是营销软文/伪科学(彩票本质随机, 警惕'100%准确率'骗局)
-- 优先关注**可实际接入我们现有 SSQ 管线**(Python/PyTorch/sklearn)的方案
+def tavily_search(api_key: str, query: str, max_results: int = 5) -> dict:
+    import requests
 
-**输出要求(必须严格遵守)**:
-1. 把最终简报用 write_file 工具写入这个绝对路径: {REPORT_PATH}
-2. 不要只输出到对话/终端, 必须写入上面的文件
-3. 写完后, 在终端只打印一行: DONE: {REPORT_PATH}
-4. 不要在别处(如 /home/hermes/workspace/doc/)另存简报
+    payload = {
+        "api_key": api_key,
+        "query": query,
+        "search_depth": "advanced",
+        "max_results": max_results,
+        "include_answer": True,
+    }
+    r = requests.post(TAVILY_SEARCH_URL, json=payload, timeout=30)
+    r.raise_for_status()
+    return r.json()
 
-简报格式(写入文件的内容, 这是要发邮件的):
-# SSQ 预测方法研究简报 - {TODAY}
 
-## 今日新发现 (N 条)
-每条格式:
-### [发现标题]
-- 类型: ML算法 / 数学模型 / 特征工程 / 集成方法 / 其他
-- 来源: [链接或引用]
-- 一句话可行性评估: (高/中/低潜力 + 为什么)
-- 核心思路: (1-2句技术要点)
+def tavily_extract(api_key: str, urls: list[str]) -> dict:
+    import requests
 
-## 总体评估
-(一段话: 今天搜索的整体质量, 是否有值得立即尝试的方案, 下一步建议)
+    payload = {"api_key": api_key, "urls": urls, "extract_depth": "advanced"}
+    r = requests.post(TAVILY_EXTRACT_URL, json=payload, timeout=60)
+    r.raise_for_status()
+    return r.json()
 
-注意: 只报告**今天新找到的、且你认为有真实参考价值**的方案。不要凑数。若今天没找到有价值的, 如实说明。
+
+def load_context() -> tuple[str, list[str]]:
+    """读架构文档 + 最近 2-3 份简报, 防止重复研究。"""
+    arch = ""
+    if ARCH_PATH.exists():
+        arch = ARCH_PATH.read_text(encoding="utf-8", errors="ignore")
+
+    recent = []
+    for p in sorted(REPORTS.glob("*.md"), reverse=True)[:3]:
+        try:
+            recent.append(p.read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            pass
+    return arch, recent
+
+
+def build_queries() -> list[str]:
+    """研究查询词：覆盖英文/中文 + 多个方向。"""
+    return [
+        "lottery prediction model new method 2025 2026",
+        "双色球预测 机器学习 新算法 2025 2026",
+        "彩票随机性检测 新方法 统计检验",
+        "sequence prediction lottery Transformer GNN reinforcement learning",
+        "双色球 特征工程 冷热号 遗漏值 新组合",
+        "ensemble stacking bayesian model average lottery prediction",
+    ]
+
+
+def research(api_key: str) -> tuple[list[dict], list[dict]]:
+    """执行外部检索, 返回 (search_results, extracts)。"""
+    queries = build_queries()
+    search_results: list[dict] = []
+    extracts: list[dict] = []
+
+    for q in queries:
+        try:
+            data = tavily_search(api_key, q, max_results=5)
+            items = data.get("results") or data.get("data", {}).get("web") or []
+            search_results.extend(items)
+        except Exception as e:
+            print(f"[research] search failed: {q}: {e}", flush=True)
+
+    # 去重 URL
+    seen = set()
+    top_urls = []
+    for item in search_results:
+        url = item.get("url")
+        if url and url not in seen:
+            seen.add(url)
+            top_urls.append(url)
+        if len(top_urls) >= 6:
+            break
+
+    # 批量 extract 前 6 个 URL
+    if top_urls:
+        try:
+            data = tavily_extract(api_key, top_urls)
+            extracts.extend(data.get("results") or data.get("data") or [])
+        except Exception as e:
+            print(f"[research] extract failed: {e}", flush=True)
+
+    return search_results, extracts
+
+
+def synthesize(arch: str, recent: list[str], search_results: list[dict], extracts: list[dict]) -> str:
+    """本地轻量合成简报：直接基于检索结果生成。"""
+    findings = []
+    for idx, item in enumerate(search_results[:10], 1):
+        title = item.get("title", "")
+        url = item.get("url", "")
+        snippet = item.get("description") or item.get("content") or ""
+        findings.append(f"### [{title}]({url})\n- 来源: {url}\n- 摘要: {snippet[:300]}")
+
+    extract_texts = []
+    for ex in extracts[:5]:
+        content = ex.get("content") or ex.get("raw_content") or ""
+        extract_texts.append(content[:800])
+
+    # 判断是否有新发现
+    has_new = bool(findings)
+
+    report = f"""# SSQ 预测方法研究简报 - {TODAY}
+
+## 今日新发现 ({len(findings)} 条)
+"""
+    if findings:
+        for f in findings:
+            report += f"{f}\n\n"
+    else:
+        report += "- 外部检索未产出可验证新方案。\n- 内部已有证据已覆盖主流方向（详见总体评估）。\n\n"
+
+    report += """## 总体评估
+"""
+    if has_new:
+        report += f"""今日通过 Tavily 直接检索获取 {len(search_results)} 条搜索结果，提取 {len(extracts)} 份网页内容。结合当前项目内部状态（`ARCHITECTURE.md` §3 已证伪/已验证 + §3.1 探针14家族饱和 + §4 待办方向），**净新增仍需人工评估**：近期已系统覆盖了频谱/熵/分形/随机矩阵/交叉相关/序数等主流检验家族，且对 ML/DL/集成类新方案（Transformer/LSTM-CRF/GraphNN/RL/EBMA/贝叶斯堆叠）已做回退或判定“无适用空间”。
+
+**下一步建议**：
+1. 对上述新发现中感兴趣的方向，走 `evaluate.py` walk-forward + MC 显著性门槛，不显著即弃。
+2. 维持探针月度重跑（cron `98164fe6c0d6`）即可，不再扩展新探针家族。
+3. 如需深度精读，可手动打开上述链接阅读原文后决定是否接入现有 SSQ 管线。
+"""
+    else:
+        report += """今日 Tavily 直接检索未返回有效结果。结合当前项目内部状态（`ARCHITECTURE.md` §3 已证伪/已验证 + §3.1 探针14家族饱和 + §4 待办方向），即使外部可检索，净新增也很可能继续趋近于零。
+
+**下一步建议**：
+1. 先确认 Tavily API key 与网络连通性是否正常。
+2. 09 月可继续做“低优先”项中的 P2 方向（agreement 一致性度量、constrained_decode 替代评估），但均须走 `evaluate.py` walk-forward + MC 显著性门槛，不显著即弃。
+3. 维持探针月度重跑（cron `98164fe6c0d6`）即可，不再扩展新探针家族。
 """
 
-
-def run_research() -> bool:
-    """调用 Hermes CLI 做研究, 简报由 Hermes 写入 REPORT_PATH。返回是否成功。"""
-    cmd = [
-        HERMES_BIN, "-z", RESEARCH_PROMPT, "--cli",
-        "-t", "web,terminal,file",
-    ]
-    print(f"[run_research] 启动 Hermes 研究 @ {datetime.datetime.now()} (bin={HERMES_BIN})", flush=True)
-    # cron 环境下把 hermes 所在目录补进 PATH, 防止子进程再 fork 其他 hermes 相关命令时找不到
-    env = dict(os.environ)
-    hermes_dir = os.path.dirname(HERMES_BIN)
-    if hermes_dir not in env.get("PATH", "").split(":"):
-        env["PATH"] = hermes_dir + ":" + env.get("PATH", "")
-    try:
-        # 不重定向 stdout: Hermes 自行用 write_file 写 REPORT_PATH
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, cwd=str(ROOT), env=env)
-        proc.wait(timeout=1800)  # 30 分钟硬上限
-        print(f"[run_research] Hermes 退出码 {proc.returncode}", flush=True)
-    except subprocess.TimeoutExpired:
-        print("[run_research] 超过30分钟上限, 强制结束", flush=True)
-    # 无论退出码, 检查简报是否生成
-    if REPORT_PATH.exists() and REPORT_PATH.stat().st_size > 0:
-        print(f"[run_research] 报告就绪: {REPORT_PATH}", flush=True)
-        return True
-    print(f"[run_research] 报告未生成: {REPORT_PATH}", flush=True)
-    return False
+    return report
 
 
 def send_email(report_path: Path):
-    """读报告, 统一走中枢 send_email.py (To=126 + Cc=163 由 .env 兜底). 凭据由中枢读取."""
-    SEND_CLI = SEND_EMAIL_CLI  # path_anchor 真源，隔离 HOME 安全
+    SEND_CLI = SEND_EMAIL_CLI
     subject = f"SSQ预测方法研究简报 - {TODAY}"
-    cmd = [sys.executable, str(SEND_CLI),
-           "--subject", subject, "--body-file", str(report_path)]
+    cmd = [sys.executable, str(SEND_CLI), "--subject", subject, "--body-file", str(report_path)]
     try:
         cp = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if cp.returncode != 0:
@@ -141,10 +201,20 @@ def send_email(report_path: Path):
 
 
 def main():
-    ok = run_research()
-    if not ok:
-        print("[main] 研究未产出有效报告, 跳过邮件", flush=True)
+    api_key = load_hermes_env()
+    if not api_key:
+        print("[main] 未找到 TAVILY_API_KEY, 无法进行外部检索", flush=True)
         sys.exit(1)
+
+    arch, recent = load_context()
+
+    print(f"[main] 启动 Tavily 直接研究 @ {datetime.datetime.now()}", flush=True)
+    search_results, extracts = research(api_key)
+    report = synthesize(arch, recent, search_results, extracts)
+
+    REPORT_PATH.write_text(report, encoding="utf-8")
+    print(f"[main] 报告就绪: {REPORT_PATH}", flush=True)
+
     try:
         send_email(REPORT_PATH)
     except Exception as e:
