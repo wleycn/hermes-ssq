@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -45,7 +46,7 @@ from ml.config import POPULARITY_CONFIG, WHEEL_CONFIG
 from ml.popularity import combo_popularity, sample_with_popularity
 from ml.shrinkage import shrink_red_blue  # James-Stein 收缩: 研究结论默认开启, 概率诚实化
 from wheel import (CoverResult, greedy_cover, avg_pair_overlap, _diversify,
-                   ticket_hard_ok, ticket_soft_score)
+                   ticket_hard_ok, ticket_soft_score, ticket_hot_ok)
 
 # 池层/注层结构约束 helpers (2026-09-01 重新提案: 大中小±2/奇偶±3 池层, 大中小±1/奇偶±2 注层)
 # 池层: 18 球池约束 大中小 6-6-6 ±2, 奇偶 9-9 ±3
@@ -84,6 +85,28 @@ def _pool_constraint_ok(pool, size_tol: int = 2, oe_tol: int = 3) -> bool:
     if not all(6 - size_tol <= v <= 6 + size_tol for v in cnt):
         return False
     return 9 - oe_tol <= odd <= 9 + oe_tol
+
+
+def _load_hot_set(conn, window: int = 30, n_hot: int = 11) -> set[int]:
+    """最近 window 期红球频数 Top n_hot 作为热球集合(动态滚动, 不锁死比例)。
+
+    冷热形状约束的数据源(2026-11-21 Rocky 拍板进链路):
+    每期从开奖历史滚动计算, 热球集合随最新开奖动态变化。
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT red1, red2, red3, red4, red5, red6 FROM ssq.draw_history
+               ORDER BY dnum DESC LIMIT %s""",
+            (window,),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return set()
+    freq: Counter[int] = Counter()
+    for r in rows:
+        freq.update(int(x) for x in r)
+    top = sorted(freq, key=lambda n: (-freq[n], n))[:n_hot]
+    return set(top)
 
 
 def _sample_pool(red_mean: np.ndarray, pool_size: int, seed: int,
@@ -203,8 +226,21 @@ def _sample_red(red_prob, rng, temperature=0.6, popularity_fn=None, lambda_=0.3)
     return sorted((np.argsort(red_prob)[-6:] + 1).tolist())
 
 
-def _sample_blue(blue_prob, rng, temperature=0.7):
+def _sample_blue(blue_prob, rng, temperature=0.7, candidates: list[int] | None = None):
+    """温度软化加权抽 1 个蓝球。
+
+    candidates: 蓝球号列表(1-indexed)。传入时把候选外概率清零, 只在候选球内按
+        软化后概率加权抽签(池内球保留概率区分度, 池外球零概率)——保证每注蓝球
+        100% 落在蓝球池内。None 时走原行为(全 16 球加权, 向后兼容 CLI 5 组调试路径)。
+    """
     p = np.power(blue_prob, 1.0 / temperature)
+    if candidates is not None:
+        mask = np.zeros(16)
+        for n in candidates:
+            mask[n - 1] = p[n - 1]
+        p = mask
+        if p.sum() <= 0:  # 候选全 0 概率(理论不会发生), 退回候选内均匀
+            p = np.where(np.isin(np.arange(16), [c - 1 for c in candidates]), 1.0, 0.0)
     p = p / p.sum()
     return int(rng.choice(16, size=1, p=p)[0] + 1)
 
@@ -344,12 +380,17 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
                         seed=42, popularity_fn=None, lambda_=0.3, pool_tau=8.0,
                         max_overlap=6, pool_batches=1, diversify=False,
                         pool_size_tol=2, pool_oe_tol=3,
-                        ticket_size_tol=1, ticket_oe_tol=2):
+                        ticket_size_tol=1, ticket_oe_tol=2, blue_pool: list[int] | None = None,
+                        hot_set: set[int] | None = None,
+                        hot_range: tuple[int, int] = (1, 3)):
     """旋转矩阵覆盖模式: 红球按概率加权抽样成 pool_size 池 -> 贪心覆盖 -> 每注配 1 个蓝球。
 
     Args:
         red_mean: 33 维红球集成概率。
         blue_mean: 16 维蓝球集成概率。
+        blue_pool: 蓝球号列表(1-indexed, 通常=概率 Top8)。传入时每注蓝球只在此池内
+            按温度加权抽签(池外概率清零), 保证注单蓝球 100% ⊆ 池——池层真正约束注层。
+            None 时走原行为(全 16 球加权, 向后兼容 CLI 5 组调试路径)。
         pool_size: 红球池大小(6..33); 池由"按概率 softmax 加权随机抽 pool_size 个"构成(非硬 Top-N)。
         pool_tau: 池构造 softmax 温度(>0); 越大越接近均匀抽样, 低号(1-15)入场权越高。默认 8.0。
         max_notes / restarts / seed: 透传 wheel.greedy_cover。
@@ -364,6 +405,8 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
         pool_oe_tol: 池层奇偶容差(奇数相对 9, 默认 ±3)。
         ticket_size_tol: 注层大中小容差(每档相对 2, 默认 ±1); None=不启用。
         ticket_oe_tol: 注层奇偶容差(奇数相对 3, 默认 ±2); None=不启用。
+        hot_set: 注层冷热形状约束的热球集合(动态滚动, 由 _load_hot_set 提供); None=不启用。
+        hot_range: 热球个数允许区间 (min, max), 默认 (1, 3)。
 
     Returns:
         {"tickets": [{"reds": [...], "blue": n, "popularity": float|None}, ...],
@@ -399,7 +442,9 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
                                     restarts=restarts, seed=seed,
                                     max_overlap=max_overlap,
                                     ticket_size_tol=ticket_size_tol,
-                                    ticket_oe_tol=ticket_oe_tol)
+                                    ticket_oe_tol=ticket_oe_tol,
+                                    ticket_hot_set=hot_set,
+                                    ticket_hot_range=hot_range)
 
     # diversification step (greedy_cover tends to over-cluster similar notes)
     base_tickets = [{"reds": reds} for reds in res.tickets]
@@ -413,7 +458,7 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
     tickets = []
     for t in diversified:
         reds = t["reds"]
-        blue = _sample_blue(blue_mean, blue_rng, temperature=0.7)
+        blue = _sample_blue(blue_mean, blue_rng, temperature=0.7, candidates=blue_pool)
         popularity = popularity_fn(reds) if popularity_fn is not None \
             else combo_popularity(reds)
         tickets.append({"reds": reds, "blue": blue, "popularity": popularity})
@@ -445,13 +490,19 @@ def build_wheel_tickets(red_mean, blue_mean, pool_size=18, max_notes=30, restart
             "soft_avg": (sum(ticket_soft_score(t["reds"]) for t in diversified)
                          / len(diversified) if diversified else 0.0),
         },
+        "hot_constraint": {
+            "range": list(hot_range),
+            "hard_pass": sum(1 for t in diversified
+                             if ticket_hot_ok(t["reds"], hot_set, *hot_range)),
+            "hard_total": len(diversified),
+        },
     }
     return {"tickets": tickets, "coverage": coverage}
 
 
 def _run_wheel(red_mean, blue_mean, args, run_at, result=None):
     """--wheel 模式: 生成并打印覆盖注单 + 覆盖率报告。
-    result 不为 None 时复用(来自 generate_picks, 已含收缩); 否则用未收缩概率自算(调试)。"""
+    result 不为 None 时复用(来自 generate_picks, 默认无收缩+蓝球池约束); 否则用未收缩概率自算(调试)。"""
     pop_fn = _popularity_off if args.no_popularity else None
     if result is None:
         result = build_wheel_tickets(red_mean, blue_mean, pool_size=args.pool_size,
@@ -510,6 +561,8 @@ def main():
                          "对抗模型过拟合噪声; 不提升命中率, 概率更诚实)")
     ap.add_argument("--shrink-alpha", type=float, default=1.0,
                     help="James-Stein 收缩强度系数 ∈[0,1]; 1=标准(默认), 0=不收缩")
+    ap.add_argument("--no-hot-shape", action="store_true",
+                    help="关闭冷热形状约束(默认开启: 每注热球 1-3 个, 动态滚动窗口 30 期)")
     args = ap.parse_args()
 
     conn = psycopg.connect(**PG)
@@ -519,13 +572,14 @@ def main():
         if args.wheel:
             # 单一权威入口 generate_picks: 集成→(收缩)→纯wheel
             # CLI 单尺寸 wheel 用 raw seed(seed_shift=False) 保持历史调试输出一致
-            _, wheels = generate_picks(
+            _, wheels, _, _ = generate_picks(
                 conn, args.seed, wheels=[args.max_notes],
                 pool_size=args.pool_size, restarts=3,
                 no_shrink=args.no_shrink, shrink_alpha=args.shrink_alpha,
                 no_popularity=args.no_popularity,
                 ensemble=args.ensemble, ensemble_tau=args.ensemble_tau,
-                seed_shift=False)
+                seed_shift=False,
+                hot_shape=not args.no_hot_shape)
             result = {"tickets": wheels[args.max_notes][0],
                       "coverage": wheels[args.max_notes][1]}
             _run_wheel(red_mean, blue_mean, args, run_at, result=result)
@@ -586,16 +640,23 @@ def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 2
                    ensemble_tau: float = 8000.0, seed_shift: bool = True,
                    max_overlap: int = 6, pool_batches: int = 1, diversify: bool = False,
                    pool_size_tol: int = 2, pool_oe_tol: int = 3,
-                   ticket_size_tol: int = 1, ticket_oe_tol: int = 2):
-    """单一 picks 生成权威入口: 集成概率 → (收缩) → 纯 wheel 多尺寸。
+                   ticket_size_tol: int = 1, ticket_oe_tol: int = 2,
+                   hot_shape: bool = True, hot_window: int = 30, hot_n: int = 11,
+                   hot_range: tuple[int, int] = (1, 3)):
+    """单一 picks 生成权威入口: 集成概率 → (可选收缩) → 纯 wheel 多尺寸(蓝球池约束注蓝球)。
 
     研究结论只在此落地一次, 生产发信(ssq_send_picks)与 CLI 探索(select_numbers)
     共用, 杜绝双入口分裂导致的研究结论漏接/文档脱节。
 
     链路对齐(与 2026-08-22 简报[1] 一致):
       1. load_latest_probs 每模型每球种独立取最新, 红蓝分别均值集成
-      2. James-Stein 收缩(默认开启): 向均匀先验收缩, 概率诚实化; 不提升命中率
-      3. 纯 wheel(无 top5 锚): 各尺寸独立派生 seed, 互不嵌套共享, 流行度默认开
+      2. James-Stein 收缩(默认关闭: sigma2=1.0 对归一化概率量纲坍缩, 见 ml/shrinkage.py 警告;
+         no_shrink=False 时启用, 不提升命中率)
+      3. 蓝球池=概率 Top8, 各尺寸注单蓝球只在池内按温度加权抽签(注蓝球 100% ⊆ 池)
+      4. 纯 wheel(无 top5 锚): 各尺寸独立派生 seed, 互不嵌套共享, 流行度默认开
+      5. 冷热形状约束(2026-11-21 Rocky 拍板进链路, hot_shape 默认开):
+         每注热球个数 ∈ hot_range(默认 1-3), 热球集合 = 最近 hot_window 期
+         开奖频数 Top hot_n(动态滚动, 不锁死比例); 对齐实测开奖分布(1-3 热≈85% 期)
     返回: (run_at, {size: (tickets, coverage)})
     """
     from ml.shrinkage import shrink_red_blue
@@ -605,6 +666,16 @@ def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 2
         red_mean, blue_mean = shrink_red_blue(
             red_mean, blue_mean, sigma2=1.0, alpha=shrink_alpha)
     pop_fn = _popularity_off if no_popularity else None
+    # 冷热形状约束: 热球集合动态滚动(最近 hot_window 期频数 Top hot_n)
+    hot_set: set[int] | None = None
+    if hot_shape:
+        hot_set = _load_hot_set(conn, window=hot_window, n_hot=hot_n)
+        if not hot_set:
+            print("[warn] 开奖历史不足, 冷热形状约束自动关闭")
+    # 蓝球池=概率 Top8(1-indexed 升序): 提前到循环前, 各尺寸注单蓝球都只在此池内抽签
+    # (与返回给落库/邮件展示的 blue_pool 同源, 保证「注蓝球 100% ⊆ 展示池」)
+    top_blue_idx = np.argsort(blue_mean)[::-1][:8]
+    blue_pool = sorted(int(idx) + 1 for idx in top_blue_idx)
     out: dict[int, tuple] = {}
     for N in wheels:
         # 多尺寸时各尺寸独立派生 seed(保证注单独立生成); 单尺寸可选 raw seed 保兼容
@@ -617,9 +688,13 @@ def generate_picks(conn, seed: int, wheels: list[int] | tuple[int, ...] = (10, 2
                                   pool_size_tol=pool_size_tol,
                                   pool_oe_tol=pool_oe_tol,
                                   ticket_size_tol=ticket_size_tol,
-                                  ticket_oe_tol=ticket_oe_tol)
+                                  ticket_oe_tol=ticket_oe_tol,
+                                  blue_pool=blue_pool,
+                                  hot_set=hot_set,
+                                  hot_range=hot_range)
         out[N] = (res["tickets"], res["coverage"])
-    return run_at, out
+    red_pool = out[wheels[0]][1].get("pool", [])
+    return run_at, out, red_pool, blue_pool
 
 
 if __name__ == "__main__":

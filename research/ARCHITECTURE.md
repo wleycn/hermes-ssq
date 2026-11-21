@@ -78,12 +78,14 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 ## 2. 项目现状（一句话版）
 
 - **数据**：`ml/data/1.csv` 3494 期（2003 至今，中彩网权威 + EastMoney/网易多源轮询，幂等入库，CRLF），PG `ssq.draw_history` 全量归档（update_ssq 自动 upsert 写入，pg_schema 整表重建兜底）
-- **管线**：6 模型 → PG `ssq.model_predictions` → 均值集成 → `generate_picks`(集成→James-Stein收缩→纯wheel 默认10/20注, top5锚已弃用) → 落库 predicted_picks → 开奖日 22:15 邮件
+- **管线**：6 模型 → PG `ssq.model_predictions` → 均值集成 → `generate_picks`(集成→James-Stein收缩→纯wheel 默认10/20注, top5锚已弃用, **冷热形状约束 2026-11-21 起默认开**: 每注热球1-3个, 热球集合=最近30期频数Top11动态滚动) → 落库 predicted_picks → 开奖日 22:15 邮件
 - **回测基建**：`evaluate.py`（walk-forward + 蒙特卡洛基线 N=1000 + keep/rollback 显著性判定），特征开关 `FEATURE_TOGGLES`
 - **探针**：`ml/spectral.py`（蓝球三关）/ `ml/spectral_red.py`（红球三路径）随机性检验器——定位是**检验器非预测器**
-- **核心立场**：彩票 i.i.d. 随机，任何方法无法突破随机下限；一切特征/策略以统计检验为准绳，**FLAT/rollback 是科学结论，不是失败**。不可能性锚点：一等奖概率 ≈ 1/17,721,088
+- **核心立场（2026-11-21 Rocky 拍板）**：不预设「完全随机、无法预测」前提。持续从开奖号码、历史号码、号码池中寻找可能的规律，改进预测方案，让预测尽量贴近实际开奖。验证纪律不放松：任何候选规律先过显著性检验 + 样本外 walk-forward，优于随机基线才进选号链路；FLAT/rollback 仍是有效结论，但不再是「放弃寻找」的依据。一等奖概率锚点 ≈ 1/17,721,088
 
-## 3. 已证伪 / 已验证清单（别重复研究！）
+## 3. 已证伪 / 已验证清单（先读再设计新实验）
+
+> ⚠️ 2026-11-21 前提更新（Rocky 拍板）：冷热方向重新开放研究。下方 rollback 记录保留为基线对照，不再作为「禁止重试」依据。新实验须先读记录，用新口径/新窗口设计，不无脑重跑旧实验。
 
 ### 已证伪（rollback / 不显著 / 无意义）
 | 项 | 日期 | 证据 | 结论 |
@@ -98,6 +100,10 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 | 大号区间弥散诊断 | 2026-08-16 | 四时段无一显著（\|z\|≤2.15），29-33 子段 z=-1.957 | 确认为弥散、非时期驱动、非数据伪影、无选号含义 |
 | 搜索发现对照（2026-08-16） | 2026-08-16 | LSTM-CRF/四策略集成/特征工程/贝叶斯堆叠/KittenCN 五条 | 净新增价值低，均与已有实现/已证伪重复，详见 reports/2026-08-16.md |
 | Gap 连续间隔特征（08-21 简报[2]） | 2026-08-22 | qwen 审核证明：i.i.d. 下 gap 服从几何分布（参数 p=1/33），与已证伪 hot_cold **信息论等价**（同一信息的不同编码），连续化不改变信息含量 | **不重复实验**（省算力）：按"信息等价"归档注记，无需 walk-forward；详见 reports/2026-08-21.md 与 qwen 三日审核 |
+| 和值偏低重验（R2，2026-11-21 简报） | 2026-11-21 | 全历史 z=-2.84 显著偏低（与 08-13 一致）；但 recent100 z=0.43、recent500 z=-1.97，分时段仅 seg2000-3500 偏低，最近 28 期反偏高 103.4 | 信号已消失，不作选号先验；保留月度监控 |
+| 相邻期重号数（R3） | 2026-11-21 | 均值 1.0834 vs 期望 1.0909，χ²=2.65(df=6)，条件分层(上期≥3/上期0)无差异 | FLAT，无规律 |
+| 星期效应（R6） | 2026-11-21 | 名义检验看似显著（周四和值 z=-3.14、蓝球卡方 p=0.004）；置换检验全部收回：thu p=0.062、blue p=0.038（多重比较后不过线）、red p=0.68 | 无稳健信号。**教训：红球卡方 df 不能按 32 独立假设算**（一期 6 球无放回不独立），置换检验是此类检验的兜底 |
+| 冷热构成基线（滚动窗口） | 2026-11-21 | 每期热球(最近30期Top11)个数均值 2.03 vs 期望 2.0，超几何 χ²=10.26(p≈0.11)，滞后1自相关 -0.005 | 无预测力；形状分布稳定(1-3热≈85%期)→ 按 Rocky 拍板作**形状约束**进选号链路(定位=观感对齐，等价性验证：配对 t=-1.6 不显著，pass_rate +0.0055) |
 
 ### 已验证可用（工程资产，不是预测增益）
 - `evaluate.py` 回测框架（walk-forward + MC + keep/rollback，全特征/策略统一口径）
@@ -207,3 +213,21 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
   - 保留邮件发送链路：统一走 `send_email.py` 中枢。
 - 验证：2026-09-05 手动执行成功，报告已生成 `/home/hermes/workspace/data-center/ssq/research/reports/2026-09-05.md`，邮件发送成功。
 - 结论：系统级 crontab 已无需保留 SSQ research 调度，当前唯一调度源为 Hermes 内部 cron `df-ssq-algorithm-research`。
+
+## 10. 2026-09-20 研究通道滑坡复核与双通道修复记录
+
+- 事件：09-20 简报质量滑坡（10 条全为营销软文/伪科学/垃圾 SEO，净新增 0）。同行评测判「检索过滤器失效」。
+- 根因复核（git 取证）：**非路径问题**。`f6551ac`（09-05 修 Tavily）把原 `hermes -z` agent 研究（含 §3 已证伪清单防重复 + 批判性过滤 + 不凑数三条纪律）**降维成纯机械转写** `synthesize()`（Tavily 结果前 10 条原样照搬）。路径引用（`path_anchor.py` / `SEND_EMAIL_CLI` / `TAVILY_API_KEY` / `ARCH_PATH` / `REPORTS`）逐条验真全部完好。滑坡起点为 09-05 修复当日，09-06 起每期简报均带此退化特征，09-20 只是再现。
+- 修复（本次，Rocky 拍板方案 A）：`run_research.py` 恢复双通道——
+  1. **主通道** `run_agent_research()`：`hermes -z` agent 研究，prompt 强制开跑前读 ARCHITECTURE §3/§7 + 批判性过滤硬规则 + 不凑数。
+  2. **兜底通道** `research_tavily()` + `synthesize()`：agent 未产出时降级启用，产物显式标注「未做批判性过滤，仅供参考」。
+  3. **agent 产物 sanity 校验** `_agent_report_valid()`（≥300B + 标题开头 + 含「## 总体评估」章节）：防 agent 渐进写文件途中崩溃留下残缺文件被误判成功并发信。
+  4. **孤儿进程治理**：`proc.wait(timeout=RESEARCH_TIMEOUT_S)`（默认 30 分钟，`RESEARCH_TIMEOUT_S` 可覆盖）超时分支 `proc.kill()` + 通用异常分支 `proc.poll() is None` 判活 kill。
+  5. **路径单一源**：`DC_SSQ` 锚点由 `.infra/path_anchor.py` 提供（与 fin DC 锚点同款），`REPORTS = DC_SSQ / "research" / "reports"`；data-center 再迁移时只改 path_anchor 一处。
+- 验收：agent 主通道实跑约 11 分钟（10:50 启动 → 11:01 落盘）产出新 09-20 简报——**净新增 2 条 arXiv 学术源**（Chronos 时序基础模型探针 / Transformer-PRNG 理论边界），**8 条命中负面清单的源被逐条点名丢弃**（含 09-20 旧版机械转写全放行的 YouTube LOOPHOLE、Newswire 付费 PR、Google Play 换皮 App、百家乐术语错乱源）。滑坡已修复。
+- 测试：`tests/test_run_research.py`（10 项 + 1 项 network 标记默认 skip，覆盖双通道编排 + sanity 判据 4 探针 + 兜底标注；REPORT_PATH monkeypatch 到 tmp_path 不碰真实数据目录）。全量 pytest：92 passed，6 项失败全在 `test_spectral_red.py` 真实数据锚点漂移（`1.csv` +6 期，非代码 bug，见下方遗留登记 1）。
+- 遗留登记（未处理，单源住 `PROJECT.md`「已知问题（未处理 backlog）」，此处只留指针避免双份维护）：
+  1. `#spectral-red-anchors-drift` — spectral_red 锚点随 `1.csv` +6 期漂移，6 项数据锚断言越界，口径待 Rocky 拍板。
+  2. `#chronos-probe` — 09-20 简报建议 ①：`chronos_probe.py`（P3，14 家族唯一补盲方向，预期 FLAT）。
+  3. `#negative-list-archive` — 09-20 简报建议 ②：8 条命中负面清单的丢弃项归档进 §7 负面清单，防重复检索。
+

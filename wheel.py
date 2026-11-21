@@ -73,6 +73,28 @@ def ticket_hard_ok(combo: Sequence[int], size_tol: int = 1, oe_tol: int = 2) -> 
     return 3 - oe_tol <= odd <= 3 + oe_tol
 
 
+def ticket_hot_ok(combo: Sequence[int], hot_set: set[int] | None = None,
+                  min_hot: int = 1, max_hot: int = 3) -> bool:
+    """注层冷热形状约束: 每注热球个数落在 [min_hot, max_hot]。
+
+    热球集合由调用方按最近 window 期开奖频数 Top 定义(动态滚动, 不锁死)。
+    对齐实测开奖分布: 热球 1-3 个覆盖约 85% 期数。
+    hot_set=None 时视为不约束(向后兼容)。
+
+    Args:
+        combo: 6 个红球号码(1..33)。
+        hot_set: 热球号码集合; None=不启用本约束。
+        min_hot / max_hot: 热球个数下限/上限(默认 1..3)。
+
+    Returns:
+        bool: 是否满足冷热形状约束。
+    """
+    if hot_set is None:
+        return True
+    n_hot = sum(1 for x in combo if x in hot_set)
+    return min_hot <= n_hot <= max_hot
+
+
 def ticket_soft_score(combo: Sequence[int]) -> int:
     """注层软偏好(不强求): 质数 2~4 个 +1, 总和 70~140 +1。
 
@@ -125,6 +147,8 @@ def greedy_cover(
     max_overlap: int = 6,
     ticket_size_tol: Optional[int] = None,
     ticket_oe_tol: Optional[int] = None,
+    ticket_hot_set: set[int] | None = None,
+    ticket_hot_range: tuple = (1, 3),
 ) -> CoverResult:
     """加权贪心集合覆盖: 生成至多 max_notes 注, 最大化 6-子集通过率。
 
@@ -138,6 +162,8 @@ def greedy_cover(
         max_overlap: 注间最大允许重号球数(0..6); 6=不限制。
         ticket_size_tol: 注层大中小硬约束容差(每档相对 2 个), None=不启用。
         ticket_oe_tol: 注层奇偶硬约束容差(奇数相对 3 个), None=不启用。
+        ticket_hot_set: 注层冷热形状约束的热球集合, None=不启用。
+        ticket_hot_range: 热球个数允许区间 (min, max), 默认 (1, 3)。
 
     Returns:
         CoverResult。
@@ -167,13 +193,15 @@ def greedy_cover(
     k_choose_t = math.comb(k, t)  # 每 6-子集含 C(6,4)=15 个 4-子集
     # 枚举顺序固定(itertools.combinations 字典序), 保证确定性。
     all_six = list(itertools.combinations(pool, k))          # 全部 C(N,6) 号码元组
-    # 注层硬约束过滤(启用时): 只保留 大中小±size_tol & 奇偶±oe_tol 的候选
-    hard_active = ticket_size_tol is not None or ticket_oe_tol is not None
+    # 注层硬约束过滤(启用时): 只保留 大中小±size_tol & 奇偶±oe_tol & 冷热形状 的候选
+    hard_active = (ticket_size_tol is not None or ticket_oe_tol is not None
+                   or ticket_hot_set is not None)
     if hard_active:
         six_subsets = [c for c in all_six
                        if ticket_hard_ok(c,
                                          ticket_size_tol if ticket_size_tol is not None else 6,
-                                         ticket_oe_tol if ticket_oe_tol is not None else 6)]
+                                         ticket_oe_tol if ticket_oe_tol is not None else 6)
+                       and ticket_hot_ok(c, ticket_hot_set, *ticket_hot_range)]
         if len(six_subsets) < max_notes:
             # 过滤后候选不足: 自动放宽到无约束(保证可生成 max_notes 注)
             six_subsets = all_six

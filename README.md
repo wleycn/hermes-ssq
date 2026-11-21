@@ -4,9 +4,11 @@
 
 > 最后更新: 2026-08-22 | 维护人: Cheese (Hermes)
 
-> ⚠️ 本系统仅供技术学习与研究，彩票中奖为随机事件，预测结果不构成任何投注建议。
+> 🎯 项目前提（2026-11-21 Rocky 拍板）：不预设「完全随机、无法预测」。持续从开奖号码、历史号码、号码池中寻找可能的规律，改进预测方案，让预测尽量贴近实际开奖。
 >
-> 🔬 **诚实结论（历史回测坐实）**：双色球为独立均匀随机过程，任何选号策略的期望收益 < 成本。wheel 30 注 ROI 历史回测 **-96.15%**（wheel_ledger 口径 B+C: 固定30注 vs 纯随机30注对截至 2026-08-14 的 3489 期核算; ML 策略 ROI 约 -75%）。本系统的价值是"统计严谨 + 诚实检验 + 自动化流程"，不是"能赚钱"。
+> 🧪 验证纪律（不放松）：任何候选规律必须先过显著性检验 + 样本外 walk-forward 回测，证明优于随机基线才进选号链路。宁可放慢，不把噪声当信号。
+>
+> ⚠️ 本系统仅供技术学习与研究，预测结果不构成任何投注建议。
 
 ## 项目结构
 
@@ -20,7 +22,7 @@ SSQ/
 ├── batch_predict_pg.py           # 批量训练 6 模型 → 概率写入 PostgreSQL
 ├── pg_schema.py                  # PG 建表 + 1.csv 导入 draw_history + data_date 列迁移
 ├── cleanup_predictions.py        # 预测表 30 天滚动清理（仅动了 model_predictions）
-├── select_numbers.py             # 读 PG 集成概率 → 单一生成入口 generate_picks(集成→James-Stein收缩→纯wheel 10/20注)
+├── select_numbers.py             # 读 PG 集成概率 → 单一生成入口 generate_picks(集成→纯wheel 10/20注; 收缩默认关, --shrink 启用; 冷热形状约束默认开: 每注热球1-3个, 热球集合=最近30期频数Top11动态滚动)
 ├── ssq_send_picks.py             # 主入口: generate_picks→落库 predicted_picks→自动镜像→发邮件(生产 cron 调用)
 ├── send_ssq_picks.py             # DEPRECATED 旧入口(仅组装旧正文直发, 不再被 cron 调用)
 ├── retrain_pipeline.py           # 一键重训+验证+发邮件（封装 batch_predict_pg + 外部脚本）
@@ -51,7 +53,7 @@ SSQ/
     ├── conformal/                # C 层不确定性量化 UQ(2026-08-19, 仅 numpy)
     │   ├── conformal_predict.py  # Conformal 集合覆盖率(带理论保证的候选集, 解释层)
     │   └── edl_probe.py          # EDL 证据深度学习(先验实验: 证据量在 i.i.d. 退化→仅解释)
-    ├── shrinkage.py              # James-Stein 收缩后处理(08-22): 集成概率向均匀先验收缩(默认开启, --no-shrink 关闭)
+    ├── shrinkage.py              # James-Stein 收缩后处理(08-22): 集成概率向均匀先验收缩(09-28 起发信链路默认关闭; sigma2=1.0 对归一化概率量纲坍缩, 见模块内警告)
     ├── data/
     │   ├── dataset.py            # 数据加载与预处理
     │   ├── spider.py             # 历史数据爬虫（东方财富网，备用）
@@ -110,9 +112,10 @@ ml.main 训练 6 模型 (rf / lightgbm / cnn_reg / lstm / transformer / cdm)  # 
    ▼
 PostgreSQL ssq.model_predictions (每模型每球种独立取最新 run_at)
    │  select_numbers.generate_picks 读最新 → 集成(等权均值)
-   │  → James-Stein 收缩(默认开) → 纯 wheel 旋转矩阵
+   │  → James-Stein 收缩(2026-09-28 起默认关闭, sigma2=1.0 量纲坍缩; --shrink 显式启用) → 纯 wheel 旋转矩阵
    ▼
 wheel 旋转矩阵 (Top-18球池, 默认 10/20 注, 4-子集覆盖, pass_rate≈95.4%; top5 锚已弃用)
+   │  蓝球池=概率 Top8 落库展示, 每注蓝球只在池内按温度加权抽签(2026-09-28 起, 注蓝球 100% ⊆ 池)
    │
    ▼
         邮件推送（开奖日 22:15 cron 触发 ssq_send_picks.py）
