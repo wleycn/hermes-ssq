@@ -53,10 +53,21 @@ from evaluate import main
 VERDICTS = ("FLAT", "PEAK_CONFIRMED", "NONSPECTRAL_BIAS",
             "STRUCTURAL_ANOMALY", "SCALAR_BIAS", "INSUFFICIENT_DATA")
 
+# 锚点冻结期号(2026-11-21 Rocky 拍板): 真实数据锚点测试只取 dNum <= 此值的切片。
+# 根因: 锚点写死在"全量数据"上, 数据每增长几期锚点就漂移(1.csv 全量保留, 无固定终点)。
+# 机制: 冻结切片后锚点永不过期, 回归检测力保留(改代码导致统计量变仍会红)。
+FROZEN_DNUM = 2026133
+
 
 @pytest.fixture(scope="module")
 def df() -> pd.DataFrame:
     return load_data()
+
+
+@pytest.fixture(scope="module")
+def df_frozen(df: pd.DataFrame) -> pd.DataFrame:
+    """锚点测试专用: 固定期号切片, 防锚点随数据增长漂移。"""
+    return df[df["dNum"] <= FROZEN_DNUM]
 
 
 def _real_reds(df: pd.DataFrame) -> np.ndarray:
@@ -72,9 +83,9 @@ def _synthetic_reds(rng: np.random.Generator, n: int) -> np.ndarray:
 
 
 # ================= 1. 路径1 时间维度 =================
-def test_red_indicator_matrix_structure(df: pd.DataFrame):
+def test_red_indicator_matrix_structure(df_frozen: pd.DataFrame):
     """形状 (33,N); 行和范围含期望 634.18; 全矩阵和=6N; 任意列恰 6 个 True。"""
-    reds = _real_reds(df)
+    reds = _real_reds(df_frozen)
     ind = red_indicator_matrix(reds)
     n = reds.shape[0]
     assert ind.shape == (RED_N, n)
@@ -82,26 +93,25 @@ def test_red_indicator_matrix_structure(df: pd.DataFrame):
     assert ind.sum() == 6 * n
     assert np.all(ind.sum(axis=0) == 6)
     row_sums = ind.sum(axis=1)
-    assert 577 <= row_sums.min() and row_sums.max() <= 686  # 锚 [577,686], 期望 634.18
+    assert 582 <= row_sums.min() and row_sums.max() <= 696  # 冻结锚 [582,696], 期望 634.18
 
 
-def test_pooled_chi2_real_data_anchor(df: pd.DataFrame):
-    """真实数据 stat≈44.43 (容差 0.2)、df=32、p≈0.071 (容差 0.01)——PM 锚固化。
-    注: 概率锚点随数据增长(期数+1)会微动, 容差从 0.1/0.005 放宽以容纳固有漂移。"""
-    chi2 = pooled_red_chi2(_real_reds(df))
-    assert abs(chi2.stat - 44.43) < 0.2
+def test_pooled_chi2_real_data_anchor(df_frozen: pd.DataFrame):
+    """冻结切片 stat≈45.81 (容差 0.2)、df=32、p≈0.054 (容差 0.01)——PM 锚固化。"""
+    chi2 = pooled_red_chi2(_real_reds(df_frozen))
+    assert abs(chi2.stat - 45.81) < 0.2
     assert chi2.df == 32
-    assert abs(chi2.p_value - 0.071) < 0.01
+    assert abs(chi2.p_value - 0.054) < 0.01
     assert chi2.significant is False  # α_comp=0.00568 下未触发
 
 
-def test_repeat_rate_exact_moments_and_real(df: pd.DataFrame):
-    """单期重号数期望/方差闭式断言; 真实数据观测≈1.0826 且 |z|<2.766。"""
+def test_repeat_rate_exact_moments_and_real(df_frozen: pd.DataFrame):
+    """单期重号数期望/方差闭式断言; 冻结切片观测≈1.0834 且 |z|<2.766。"""
     import ml.spectral_red as sr
     assert abs(sr.REPEAT_MU - 36.0 / 33.0) < 1e-12
     assert abs(sr.REPEAT_VAR - 0.753099) < 1e-5
-    rr = repeat_rate_test(_real_reds(df))
-    assert abs(rr.observed_rate - 1.0826) < 0.01
+    rr = repeat_rate_test(_real_reds(df_frozen))
+    assert abs(rr.observed_rate - 1.0834) < 0.01
     assert abs(rr.z) < 2.766  # α_comp 双侧临界
 
 
@@ -125,17 +135,17 @@ def test_indicator_fisher_g_family_real(df: pd.DataFrame):
 
 
 # ================= 2. 路径2 横截面 =================
-def test_cooccurrence_matrix_properties(df: pd.DataFrame):
-    """对称、对角 0、总和=30N、每对期望=30N/1056、观测范围 [71,132]（容差放宽）。"""
-    reds = _real_reds(df)
+def test_cooccurrence_matrix_properties(df_frozen: pd.DataFrame):
+    """对称、对角 0、总和=30N、每对期望=30N/1056、观测范围 [71,136](冻结锚)。"""
+    reds = _real_reds(df_frozen)
     n = reds.shape[0]
     c = cooccurrence_matrix(reds)
     assert c.shape == (33, 33)
     assert np.array_equal(c, c.T)
     assert np.all(np.diag(c) == 0)
     assert c.sum() == 30 * n
-    assert abs(30.0 * n / 1056.0 - 99.09) < 0.1
     obs = c[np.triu_indices(33, k=1)]
+    assert abs(obs.mean() - 30.0 * n / 1056.0) < 1e-9  # 每对期望恒等式(随 n 自适应)
     assert 60 <= obs.min() <= 90
     assert 120 <= obs.max() <= 150
 
@@ -204,16 +214,15 @@ def test_subclass_closed_form_matches_enumeration():
     assert abs(v_zone - 3.475932) < 1e-4
 
 
-def test_subclass_real_data_anchors(df: pd.DataFrame):
-    """连号 obs=3119 exp≈3171.8 z≈-1.11; 同尾 z≈-0.71; 区间3 z≈-3.02 近阈值不触发。
-    注: 概率锚点随数据增长微动, 容差从 0.02 放宽至 0.05。"""
-    res = run_red_spectral_test(_real_reds(df))
+def test_subclass_real_data_anchors(df_frozen: pd.DataFrame):
+    """冻结切片: 连号 obs=3160 exp≈3207.3 z≈-0.99; 同尾 z≈-0.81; 区间3 z≈-3.02 近阈值不触发。"""
+    res = run_red_spectral_test(_real_reds(df_frozen))
     subs = {s["name"]: s for s in res.path2["subclasses"]}
     lz = subs["连号"]
-    assert lz["observed"] == 3119
-    assert abs(lz["expected"] - 3171.8) < 1.0
-    assert abs(lz["z"] - (-1.11)) < 0.05
-    assert abs(subs["同尾"]["z"] - (-0.71)) < 0.05
+    assert lz["observed"] == 3160
+    assert abs(lz["expected"] - 3207.3) < 1.0
+    assert abs(lz["z"] - (-0.99)) < 0.05
+    assert abs(subs["同尾"]["z"] - (-0.81)) < 0.05
     z3 = subs["区间3[23..33]"]["z"]
     assert abs(z3 - (-3.02)) < 0.05
     assert abs(z3) < 3.254 and abs(z3) > 2.5
@@ -245,24 +254,23 @@ def test_span_odd_null_closed_form():
     assert abs(ovar - 1.2645) < 1e-3
 
 
-def test_moments_z_sum_real(df: pd.DataFrame):
-    """真实数据和值均值 z≈-2.865 (容差 0.05) 且 p<0.01——路径3 判定项锚点。"""
-    res = run_red_spectral_test(_real_reds(df))
+def test_moments_z_sum_real(df_frozen: pd.DataFrame):
+    """冻结切片和值均值 z≈-2.836 (容差 0.05) 且 p<0.01——路径3 判定项锚点。"""
+    res = run_red_spectral_test(_real_reds(df_frozen))
     s = res.path3["sum"]
-    assert abs(s["z"] - (-2.865)) < 0.05
+    assert abs(s["z"] - (-2.836)) < 0.05
     assert s["p_two_sided"] < 0.01
     assert s["significant"] is True
 
 
-def test_odd_even_chi2_real(df: pd.DataFrame):
-    """真实数据 chi2≈12.07 df=6 p≈0.060 (容差 0.02), 未触发 α_comp。
-    注: 概率锚点随数据增长微动, 容差从 0.01 放宽至 0.02。"""
-    reds = _real_reds(df)
+def test_odd_even_chi2_real(df_frozen: pd.DataFrame):
+    """冻结切片 chi2≈12.29 df=6 p≈0.056 (容差 0.02), 未触发 α_comp。"""
+    reds = _real_reds(df_frozen)
     odds = (reds % 2 == 1).sum(axis=1)
     chi = odd_even_chi2(odds)
-    assert abs(chi.stat - 12.07) < 0.02
+    assert abs(chi.stat - 12.29) < 0.02
     assert chi.df == 6
-    assert abs(chi.p_value - 0.060) < 0.02
+    assert abs(chi.p_value - 0.056) < 0.02
     assert chi.significant is False
 
 

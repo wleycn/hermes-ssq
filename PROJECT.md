@@ -47,12 +47,12 @@ SSQ/
 - 预测 `evaluate.py` 51KB，改前先读全文件，别凭记忆改
 - PG 连接走 `.env` 的 `DATABASE_URL`，不硬编码
 - `is not None` 对未定义变量恒真（Undefined≠None）——判"是否传入"用 `is defined`（Jinja/模板语境）
+- **真实数据测试锚点必须冻在固定期号切片上**（2026-11-21）：`1.csv` 全量保留、无固定终点，锚点写在"全量数据"上会随每期新增漂移。模式：`df[df.dNum <= FROZEN_DNUM]` + fixture `df_frozen`（见 `tests/test_spectral_red.py`）；重标定锚点时同步重算切片值，不得改回全量。
 
 ## 已知问题（未处理 backlog）
 
 > 与「已知坑（踩过）」区分：那是"踩过 + 规避法"的静态记录，这里是"已知待办、尚未处理"的动态清单。处理完一项即移除（踩坑性质者回填「已知坑」），并同步 `research/ARCHITECTURE.md §10` 的遗留登记。
 
-- <a id="spectral-red-anchors-drift"></a>⏳ 未处理 | **spectral_red 锚点随 `1.csv` 漂移**：`tests/test_spectral_red.py` 6 项真实数据锚点断言越界（`1.csv` 近期 +6 期，红球行和实测 [579,691] vs 锚 [577,686]；chi² 期望 12.07 vs 实测 12.139）。数据驱动断言在固定锚点上写死，期数增长即过期。修法二选一：① 重算锚点重标定 ② 改数据感知断言；口径待定（是否随数据更新定期重标定）。
 - <a id="chronos-probe"></a>⏳ 未处理 | **09-20 简报建议 ①：`chronos_probe.py`**（P3 低优探针——预训练时序基础模型零样本外推，14 探针家族唯一补盲方向；预期结论 FLAT，复用已有 surrogate 判据框架）。
 - <a id="negative-list-archive"></a>⏳ 未处理 | **09-20 简报建议 ②：8 条命中负面清单的丢弃项归档**入 `ARCHITECTURE.md §7` 研究史索引的负面清单（Lottery loophole 类营销号 / Newswire 付费 PR / 换皮 App / 百家乐术语错乱源等），防未来检索重复命中。
 
