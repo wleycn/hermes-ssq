@@ -183,6 +183,12 @@ PG ssq.model_predictions (run_at/model/ball_type/num/prob/data_date, 保留30天
 
 ## 7. 研究史索引
 
+- 2026-11-21: 种子搜索实验 Phase 1 完成 → `research/seed_search/PHASE1_VERDICT.md`。**H1 否证**：π/e/√2/φ 四族各 100 万种子得分分布与随机对照逐位相同（均值差<6×10⁻⁶，max 精确相等，KS 全不显著）。根因：default_rng(PCG64) 对任何种子输出不可区分的均匀流。与 Phase 0 等价性定理合流 → **全域均匀种子搜索 = 追热号（已证伪），NO-SIGNAL，E1 归档终止**。仅剩可测变体：候选池=模型 Top18 池。
+- 2026-11-21: 种子搜索实验 Phase 0 完成 → `research/seed_search/PHASE0_VERDICT.md`。内核四问全过（恒等式/基线/吞吐 4788种子/s/连续种子独立）。**关键发现：全域均匀种子搜索 ≡ 追热号（恒等式推出）**。空分布：运气王 excess 全历史 +1.4% → 近30期 +12%。
+
+- 2026-11-21: 种子搜索实验计划 `research/SEED_SEARCH_PLAN.md`（设计稿，待 Rocky 拍板启动 Phase 0；五阶段 + 预注册闸门 + CUSUM 退出机制）
+- 2026-11-21: 种子搜索文献调研（Rocky 建议启动，五路联合搜索）→ `SEED_SEARCH_PLAN.md §11`。命中：Binh Ho 种子乐观性定理（E[max]≤μ+σ√(2log k)，确认极值陷阱 + 相关种子独立性警告）；White RC/SPA 检验（判据升级）；游戏速通 RNG 操纵社区（本质区别：游戏 PRNG 可逆向、物理摇奖不可）；CUSUM 现成实现；SmileyNet 讽刺论文与营销号入负面清单。
+
 - 2026-08-17 简报: `reports/2026-08-17.md`（4 发现：ESN/Ordinal/Conformal/PySR）
 - 2026-08-18 简报: `reports/2026-08-18.md`（4 发现：可见图/Copula/EDL/Surrogate）
 - 2026-08-19 简报: `reports/2026-08-19.md`（4 发现：NIST/可见图类RQA/LZ/TE；qwen 三日汇总审核已吸收）
